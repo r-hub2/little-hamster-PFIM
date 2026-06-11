@@ -1,0 +1,20 @@
+citHeader("To cite the 'PFIM' package in a publication, use:")
+
+bibentry(
+  bibtype = "Manual",
+  title = "PFIM: Population Fisher Information Matrix",
+  author = c(
+    person("Romain", "Leroux"),
+    person("France", "Mentré")
+  ),
+  year = "2026",
+  note = paste0("R package version ", meta$Version,
+                ". https://CRAN.R-project.org/package=PFIM"),
+  url = "https://CRAN.R-project.org/package=PFIM",
+  textVersion = paste(
+    "Leroux R, Mentré F (2026).",
+    "PFIM: Population Fisher Information Matrix.",
+    paste0("R package version ", meta$Version, "."),
+    "https://CRAN.R-project.org/package=PFIM."
+  )
+)

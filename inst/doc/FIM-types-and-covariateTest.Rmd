@@ -1,0 +1,61 @@
+---
+title: "FIM types (population, individual, Bayesian) and covariateTest"
+author: "PFIM 7.1"
+date: "`r Sys.Date()`"
+vignette: >
+  %\VignetteIndexEntry{FIM types and covariateTest}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(tangle = FALSE)
+knitr::opts_chunk$set(purl = FALSE, collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+PFIM 7.1 offers three `fimType` values for design evaluation when covariates and/or IOV are present:
+
+| `fimType` | Matrix content | Typical use |
+|-----------|----------------|-------------|
+| `population` | μ, β, ω², γ², σ | Classical PFIM design; full mixed-effects uncertainty |
+| `individual` | (μ, β) and σ (block-diagonal) | Expected subject-level information with covariate/IOV averaging |
+| `Bayesian` | Shrunk μ block + β (if covariates); σ not in matrix | Design FIM with population prior on typical PK parameters |
+
+The model used during `run()` and when labelling results (`show()`, `covariateTest()`) is rebuilt with the same internal pipeline: `rebuildEvalModel()` (`defineModelType` → optional Hessian → `defineModelWrapper` → `defineCovariatesData` if needed → `ensureModelOutputNames`).
+
+## Standard errors (SE)
+
+- **Population**: SEs match the full FIM; suitable for design comparison and `covariateTest` on μ and β.
+- **Individual**: SEs for μ are often large because IIV/IOV variance is not in the FIM matrix. **Use `covariateTest` slots 2–3 (TOST / relevance) for β.** Slot 1 (significance) includes β only for individual/Bayesian FIM.
+- **Bayesian**: SEs on μ are shrunk using the log-normal prior; a separate block covers β when covariates are present. Interpret clinical relevance on β via slots 2–3.
+
+## covariateTest
+
+After `run(evaluation)`:
+
+```r
+results = covariateTest(evaluation,
+                         thetaL = log(0.80), thetaU = log(1.25),
+                         target_power = 0.90, alpha = 0.05)
+show(results)
+```
+
+- **Slot 1 (significance)**: β only for `individual` / `Bayesian`; μ and β for `population`.
+- **Slots 2–3**: covariate β with ratio in or outside [0.80, 1.25] on the data scale.
+
+Required sample sizes use a bracketed root search on N (no `extendInt` extrapolation below N = 2).
+
+## Example workflow (covariates + IOV)
+
+1. Build `Evaluation` with `modelCovariates`, `fimType = "individual"` or `"Bayesian"`.
+2. `evaluation = run(evaluation)` then `show(evaluation)`.
+3. `covariateTest(evaluation)` for power and sample size on covariate effects.
+
+Occasion count is inferred from IOV covariate sequence length (see `?inferNumberOfOccasions`).
+
+## Related vignettes
+
+- `vignette("Example01")` and `vignette("Example02")` for full design evaluation and optimization workflows.
+- Package source and issues: <https://github.com/packagePFIM/PFIM>.

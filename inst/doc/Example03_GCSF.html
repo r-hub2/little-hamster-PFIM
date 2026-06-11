@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>G-CSF PK/PD design evaluation</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+<style type="text/css">
+
+div.csl-bib-body { }
+div.csl-entry {
+clear: both;
+margin-bottom: 0em;
+}
+.hanging div.csl-entry {
+margin-left:2em;
+text-indent:-2em;
+}
+div.csl-left-margin {
+min-width:2em;
+float:left;
+}
+div.csl-right-inline {
+margin-left:2em;
+padding-left:1em;
+}
+div.csl-indent {
+margin-left: 2em;
+}
+</style>
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">G-CSF PK/PD design evaluation</h1>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#model-equations" id="toc-model-equations">Model
+equations</a></li>
+<li><a href="#parameters-error-model-initial-conditions" id="toc-parameters-error-model-initial-conditions">Parameters, error
+model, initial conditions</a></li>
+<li><a href="#design" id="toc-design">Design</a></li>
+<li><a href="#test-plot" id="toc-test-plot">Test plot</a></li>
+<li><a href="#evaluate-the-population-fim" id="toc-evaluate-the-population-fim">Evaluate the population
+FIM</a></li>
+<li><a href="#compare-rse-with-poped-design-1-3-10-mgkg" id="toc-compare-rse-with-poped-design-1-3-10-mgkg">Compare RSE with
+PopED (design 1 / 3 / 10 mg/kg)</a></li>
+<li><a href="#pfim-plots-after-evaluation" id="toc-pfim-plots-after-evaluation">PFIM plots after
+evaluation</a></li>
+<li><a href="#compare-candidate-dose-sets" id="toc-compare-candidate-dose-sets">Compare candidate dose
+sets</a></li>
+</ul>
+</div>
+
+<div id="overview" class="section level1">
+<h1>Overview</h1>
+<p>Filgrastim (G-CSF) PK/PD design evaluation with PFIM: three parallel
+dose groups (1, 3, 10 mg/kg SC every 24 h for 7 doses, body weight 75
+kg, 10 subjects per group), dense PK (<code>CP</code>) and ANC
+(<code>NB</code>) sampling over 10 days <span class="citation">(<a href="#ref-Krzyzanski2010">Krzyzanski et al. 2010</a>)</span>.</p>
+<p>To reproduce this workflow interactively in RStudio:</p>
+<ol style="list-style-type: decimal">
+<li>Set the working directory to the <strong>PFIM package root</strong>
+(folder with <code>DESCRIPTION</code>).</li>
+<li>Run <code>devtools::load_all(&quot;.&quot;)</code> — not
+<code>library(PFIM)</code> alone (that loads an older installed
+build).</li>
+<li><strong>Do not</strong> re-use an <code>evaluation_gcsf</code>
+object from a previous session. Either run all code chunks below in
+order, or in one step:</li>
+</ol>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">load_all</span>(<span class="st">&quot;.&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;tools/run_gcsf_evaluation.R&quot;</span>)  <span class="co"># creates evaluation_gcsf + runs FIM</span></span></code></pre></div>
+<p><strong>Quick check:</strong> after <code>run()</code>,
+<code>det(FIM) &gt; 0</code> and
+<code>getRSE(evaluation_gcsf)[&quot;μ_NB0&quot;, &quot;RSE&quot;]</code> should be about
+<strong>11%</strong>, not ~1000%. If you only see 8 fixed effects
+(<code>μ_KA</code>…<code>μ_SM2</code> without <code>μ_KD</code>,
+<code>μ_KINT</code>, <code>μ_KMT</code>, <code>μ_KTT</code>), you are
+still on the old parameterization.</p>
+<p>The hidden <code>defs</code> chunk runs automatically when knitting
+only.</p>
+</div>
+<div id="model-equations" class="section level1">
+<h1>Model equations</h1>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Baseline steady-state block (MAIN): derived from primary parameters so that</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co"># gradients w.r.t. NB0, KMT, etc. stay consistent (as in mrgsolve/PopED).</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>gcsf_main_block <span class="ot">=</span> <span class="fu">paste</span>(</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="st">&quot;BAS = 0.0246; CP0 = BAS;&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="st">&quot;H10 = 1+SM1*CP0/(SC1+CP0); H20 = 1+SM2*CP0/(SC1+CP0); H30 = 1+SM3*CP0/(SC1+CP0);&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="st">&quot;KINB = KMT*NB0/H10;&quot;</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="st">&quot;den = KBB1*H30 + KTT*H20;&quot;</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="st">&quot;BM10 = KINB*H10/den; BM20 = KTT*H20*BM10/den;&quot;</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="st">&quot;BM30 = KTT*H20*BM20/den; BM40 = KTT*H20*BM30/den;&quot;</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="st">&quot;BM50 = KTT*H20*BM40/den; BM60 = KTT*H20*BM50/den;&quot;</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="st">&quot;BM70 = KTT*H20*BM60/den; BM80 = KTT*H20*BM70/den; BM90 = KTT*H20*BM80/den;&quot;</span>,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="st">&quot;NT0 = BM10+BM20+BM30+BM40+BM50+BM60+BM70+BM80+BM90+NB0;&quot;</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>  <span class="st">&quot;AC0 = CP0*VD; ADR0 = KSI*NT0*AC0/(KD+CP0);&quot;</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>  <span class="st">&quot;KIN = KEL*AC0 + KINT*ADR0;&quot;</span></span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a>)</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>gcsf_ode_prefix <span class="ot">=</span> <span class="fu">paste</span>(</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>  gcsf_main_block,</span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  <span class="st">&quot;ATOT = CENT;&quot;</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>  <span class="st">&quot;NT = B1+B2+B3+B4+B5+B6+B7+B8+B9+NB; RTOT = KSI*NT;&quot;</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>  <span class="st">&quot;BB = RTOT-ATOT/VD+KD; CP = 0.5*(-BB+sqrt(BB^2+4*KD*ATOT/VD));&quot;</span>,</span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a>  <span class="st">&quot;AC = CP*VD; ADR = RTOT*AC/(KD+CP);&quot;</span>,</span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a>  <span class="st">&quot;H1 = 1+SM1*CP/(SC1+CP); H2 = 1+SM2*CP/(SC1+CP); H3 = 1+SM3*CP/(SC1+CP);&quot;</span></span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a>)</span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a>modelEquations <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a>  <span class="at">Deriv_ABS  =</span> <span class="fu">paste0</span>(<span class="st">&quot;{ &quot;</span>, gcsf_ode_prefix, <span class="st">&quot; -KA*ABS }&quot;</span>),</span>
+<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a>  <span class="at">Deriv_CENT =</span> <span class="st">&quot;{ KA*ABS + KIN - KEL*AC - KINT*ADR }&quot;</span>,</span>
+<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a>  <span class="at">Deriv_FRR  =</span> <span class="st">&quot;0&quot;</span>, <span class="at">Deriv_DR =</span> <span class="st">&quot;0&quot;</span>,</span>
+<span id="cb2-30"><a href="#cb2-30" tabindex="-1"></a>  <span class="at">Deriv_B1   =</span> <span class="st">&quot;{ KINB*H1*(B1/BM10) - KBB1*H3*B1 - KTT*H2*B1 }&quot;</span>,</span>
+<span id="cb2-31"><a href="#cb2-31" tabindex="-1"></a>  <span class="at">Deriv_B2   =</span> <span class="st">&quot;{ KTT*H2*B1 - KBB1*H3*B2 - KTT*H2*B2 }&quot;</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a>  <span class="at">Deriv_B3   =</span> <span class="st">&quot;{ KTT*H2*B2 - KBB1*H3*B3 - KTT*H2*B3 }&quot;</span>,</span>
+<span id="cb2-33"><a href="#cb2-33" tabindex="-1"></a>  <span class="at">Deriv_B4   =</span> <span class="st">&quot;{ KTT*H2*B3 - KBB1*H3*B4 - KTT*H2*B4 }&quot;</span>,</span>
+<span id="cb2-34"><a href="#cb2-34" tabindex="-1"></a>  <span class="at">Deriv_B5   =</span> <span class="st">&quot;{ KTT*H2*B4 - KBB1*H3*B5 - KTT*H2*B5 }&quot;</span>,</span>
+<span id="cb2-35"><a href="#cb2-35" tabindex="-1"></a>  <span class="at">Deriv_B6   =</span> <span class="st">&quot;{ KTT*H2*B5 - KBB1*H3*B6 - KTT*H2*B6 }&quot;</span>,</span>
+<span id="cb2-36"><a href="#cb2-36" tabindex="-1"></a>  <span class="at">Deriv_B7   =</span> <span class="st">&quot;{ KTT*H2*B6 - KBB1*H3*B7 - KTT*H2*B7 }&quot;</span>,</span>
+<span id="cb2-37"><a href="#cb2-37" tabindex="-1"></a>  <span class="at">Deriv_B8   =</span> <span class="st">&quot;{ KTT*H2*B7 - KBB1*H3*B8 - KTT*H2*B8 }&quot;</span>,</span>
+<span id="cb2-38"><a href="#cb2-38" tabindex="-1"></a>  <span class="at">Deriv_B9   =</span> <span class="st">&quot;{ KTT*H2*B8 - KBB1*H3*B9 - KTT*H2*B9 }&quot;</span>,</span>
+<span id="cb2-39"><a href="#cb2-39" tabindex="-1"></a>  <span class="at">Deriv_NB   =</span> <span class="st">&quot;{ KTT*H2*B9 + KBB1*H3*(B1+B2+B3+B4+B5+B6+B7+B8+B9) - KMT*NB }&quot;</span></span>
+<span id="cb2-40"><a href="#cb2-40" tabindex="-1"></a>)</span>
+<span id="cb2-41"><a href="#cb2-41" tabindex="-1"></a></span>
+<span id="cb2-42"><a href="#cb2-42" tabindex="-1"></a>outputs <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb2-43"><a href="#cb2-43" tabindex="-1"></a>  <span class="at">RespPK =</span> <span class="fu">paste0</span>(</span>
+<span id="cb2-44"><a href="#cb2-44" tabindex="-1"></a>    <span class="st">&quot;0.5*(-(KSI*(B1+B2+B3+B4+B5+B6+B7+B8+B9+NB)-CENT/VD+KD)&quot;</span>,</span>
+<span id="cb2-45"><a href="#cb2-45" tabindex="-1"></a>    <span class="st">&quot;+sqrt((KSI*(B1+B2+B3+B4+B5+B6+B7+B8+B9+NB)-CENT/VD+KD)^2+4*KD*CENT/VD))&quot;</span></span>
+<span id="cb2-46"><a href="#cb2-46" tabindex="-1"></a>  ),</span>
+<span id="cb2-47"><a href="#cb2-47" tabindex="-1"></a>  <span class="at">RespPD =</span> <span class="st">&quot;NB&quot;</span></span>
+<span id="cb2-48"><a href="#cb2-48" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="parameters-error-model-initial-conditions" class="section level1">
+<h1>Parameters, error model, initial conditions</h1>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># DDMORE population mean (Krzyzanski et al.)</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>p <span class="ot">=</span> <span class="fu">c</span>(<span class="at">FF=</span><span class="fl">0.626</span>, <span class="at">KA=</span><span class="fl">0.642</span>, <span class="at">KINT=</span><span class="fl">0.101</span>, <span class="at">KSI=</span><span class="fl">0.211</span>, <span class="at">KMT=</span><span class="fl">0.0723</span>, <span class="at">KBB1=</span><span class="dv">0</span>, <span class="at">KTT=</span><span class="fl">0.0102</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>       <span class="at">KEL=</span><span class="fl">0.148</span>, <span class="at">VD=</span><span class="fl">2.56</span>, <span class="at">KD=</span><span class="fl">1.27</span>, <span class="at">NB0=</span><span class="fl">1.65</span>, <span class="at">SC1=</span><span class="fl">3.21</span>, <span class="at">SM1=</span><span class="fl">34.3</span>, <span class="at">SM2=</span><span class="fl">32.3</span>, <span class="at">SM3=</span><span class="dv">0</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co"># Primary parameters only (KINB, BM10, KIN are derived in gcsf_main_block).</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co"># KD, KINT, KMT, KTT are estimated fixed effects in PopED (no IIV).</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>modelParameters <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KA&quot;</span>,   <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KA&quot;</span>],   <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KEL&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KEL&quot;</span>],  <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.312</span>))),</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;VD&quot;</span>,   <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;VD&quot;</span>],   <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.328</span>))),</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KD&quot;</span>,   <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KD&quot;</span>],   <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KINT&quot;</span>, <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KINT&quot;</span>], <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KSI&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KSI&quot;</span>],  <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.224</span>))),</span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KMT&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KMT&quot;</span>],  <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KTT&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KTT&quot;</span>],  <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;NB0&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;NB0&quot;</span>],  <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.298</span>))),</span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;SC1&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;SC1&quot;</span>],  <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.803</span>))),</span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;SM1&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;SM1&quot;</span>],  <span class="at">omega=</span><span class="fu">sqrt</span>(<span class="fl">0.0128</span>))),</span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;SM2&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;SM2&quot;</span>],  <span class="at">omega=</span><span class="dv">0</span>)),</span>
+<span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;SM3&quot;</span>,  <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;SM3&quot;</span>],  <span class="at">omega=</span><span class="dv">0</span>), <span class="at">fixedMu=</span><span class="cn">TRUE</span>),</span>
+<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;FF&quot;</span>,   <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;FF&quot;</span>],   <span class="at">omega=</span><span class="dv">0</span>), <span class="at">fixedMu=</span><span class="cn">TRUE</span>),</span>
+<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>  <span class="fu">ModelParameter</span>(<span class="at">name=</span><span class="st">&quot;KBB1&quot;</span>, <span class="at">distribution=</span><span class="fu">LogNormal</span>(<span class="at">mu=</span>p[<span class="st">&quot;KBB1&quot;</span>],<span class="at">omega=</span><span class="dv">0</span>), <span class="at">fixedMu=</span><span class="cn">TRUE</span>)</span>
+<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a>)</span>
+<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>modelError <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a>  <span class="fu">Combined1</span>(<span class="at">output=</span><span class="st">&quot;RespPK&quot;</span>, <span class="at">sigmaInter=</span><span class="dv">0</span>,    <span class="at">sigmaSlope=</span><span class="fl">0.253</span>),</span>
+<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a>  <span class="fu">Combined1</span>(<span class="at">output=</span><span class="st">&quot;RespPD&quot;</span>, <span class="at">sigmaInter=</span><span class="fl">2.10</span>, <span class="at">sigmaSlope=</span><span class="fl">0.0227</span>)</span>
+<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>)</span>
+<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a><span class="co"># String expressions: re-evaluated from current mu on each gradient step.</span></span>
+<span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>gcsf_baseline_ic <span class="ot">=</span> <span class="cf">function</span>(state) {</span>
+<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  blk <span class="ot">=</span> <span class="fu">paste</span>(</span>
+<span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a>    <span class="st">&quot;local({ BAS = 0.0246; CP0 = BAS;&quot;</span>,</span>
+<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>    <span class="st">&quot;H10 = 1+SM1*CP0/(SC1+CP0); H20 = 1+SM2*CP0/(SC1+CP0); H30 = 1+SM3*CP0/(SC1+CP0);&quot;</span>,</span>
+<span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>    <span class="st">&quot;KINB = KMT*NB0/H10; den = KBB1*H30 + KTT*H20;&quot;</span>,</span>
+<span id="cb3-36"><a href="#cb3-36" tabindex="-1"></a>    <span class="st">&quot;BM10 = KINB*H10/den; BM20 = KTT*H20*BM10/den;&quot;</span>,</span>
+<span id="cb3-37"><a href="#cb3-37" tabindex="-1"></a>    <span class="st">&quot;BM30 = KTT*H20*BM20/den; BM40 = KTT*H20*BM30/den;&quot;</span>,</span>
+<span id="cb3-38"><a href="#cb3-38" tabindex="-1"></a>    <span class="st">&quot;BM50 = KTT*H20*BM40/den; BM60 = KTT*H20*BM50/den;&quot;</span>,</span>
+<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a>    <span class="st">&quot;BM70 = KTT*H20*BM60/den; BM80 = KTT*H20*BM70/den; BM90 = KTT*H20*BM80/den;&quot;</span>,</span>
+<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a>    <span class="st">&quot;NT0 = BM10+BM20+BM30+BM40+BM50+BM60+BM70+BM80+BM90+NB0;&quot;</span>,</span>
+<span id="cb3-41"><a href="#cb3-41" tabindex="-1"></a>    <span class="st">&quot;AC0 = CP0*VD; ADR0 = KSI*NT0*AC0/(KD+CP0);&quot;</span></span>
+<span id="cb3-42"><a href="#cb3-42" tabindex="-1"></a>  )</span>
+<span id="cb3-43"><a href="#cb3-43" tabindex="-1"></a>  <span class="fu">paste0</span>(blk, <span class="st">&quot; &quot;</span>, state, <span class="st">&quot; })&quot;</span>)</span>
+<span id="cb3-44"><a href="#cb3-44" tabindex="-1"></a>}</span>
+<span id="cb3-45"><a href="#cb3-45" tabindex="-1"></a></span>
+<span id="cb3-46"><a href="#cb3-46" tabindex="-1"></a><span class="co"># Order must match modelEquations (ABS, CENT, FRR, DR, B1–B9, NB) for deSolve.</span></span>
+<span id="cb3-47"><a href="#cb3-47" tabindex="-1"></a>initialConditions <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb3-48"><a href="#cb3-48" tabindex="-1"></a>  <span class="at">ABS =</span> <span class="dv">0</span>,</span>
+<span id="cb3-49"><a href="#cb3-49" tabindex="-1"></a>  <span class="at">CENT =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;AC0+ADR0&quot;</span>),</span>
+<span id="cb3-50"><a href="#cb3-50" tabindex="-1"></a>  <span class="at">FRR =</span> <span class="dv">0</span>,</span>
+<span id="cb3-51"><a href="#cb3-51" tabindex="-1"></a>  <span class="at">DR =</span> <span class="dv">0</span>,</span>
+<span id="cb3-52"><a href="#cb3-52" tabindex="-1"></a>  <span class="at">B1 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM10&quot;</span>), <span class="at">B2 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM20&quot;</span>), <span class="at">B3 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM30&quot;</span>),</span>
+<span id="cb3-53"><a href="#cb3-53" tabindex="-1"></a>  <span class="at">B4 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM40&quot;</span>), <span class="at">B5 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM50&quot;</span>), <span class="at">B6 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM60&quot;</span>),</span>
+<span id="cb3-54"><a href="#cb3-54" tabindex="-1"></a>  <span class="at">B7 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM70&quot;</span>), <span class="at">B8 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM80&quot;</span>), <span class="at">B9 =</span> <span class="fu">gcsf_baseline_ic</span>(<span class="st">&quot;BM90&quot;</span>),</span>
+<span id="cb3-55"><a href="#cb3-55" tabindex="-1"></a>  <span class="at">NB =</span> <span class="st">&quot;NB0&quot;</span></span>
+<span id="cb3-56"><a href="#cb3-56" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="design" class="section level1">
+<h1>Design</h1>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>pk_dense <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.167</span>, <span class="fl">0.25</span>, <span class="fl">0.333</span>, <span class="fl">0.5</span>, <span class="fl">0.667</span>, <span class="fl">0.75</span>, <span class="fl">0.833</span>, <span class="dv">1</span>, <span class="fl">1.5</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>,</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>              <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">12</span>, <span class="dv">14</span>, <span class="dv">16</span>, <span class="dv">18</span>, <span class="dv">20</span>, <span class="dv">24</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>anc_dense <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.333</span>, <span class="fl">0.5</span>, <span class="fl">0.667</span>, <span class="fl">0.75</span>, <span class="dv">1</span>, <span class="fl">1.5</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">12</span>, <span class="dv">14</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>               <span class="dv">16</span>, <span class="dv">18</span>, <span class="dv">20</span>, <span class="dv">24</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>pk_times  <span class="ot">=</span> <span class="fu">c</span>(pk_dense, pk_dense <span class="sc">+</span> <span class="dv">6</span> <span class="sc">*</span> <span class="dv">24</span>, <span class="dv">7</span> <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> <span class="fu">c</span>(<span class="dv">4</span>, <span class="dv">24</span>, <span class="dv">48</span>))</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>anc_times <span class="ot">=</span> <span class="fu">c</span>(anc_dense, (<span class="dv">2</span><span class="sc">:</span><span class="dv">6</span>) <span class="sc">*</span> <span class="dv">24</span>, anc_dense <span class="sc">+</span> <span class="dv">6</span> <span class="sc">*</span> <span class="dv">24</span>, <span class="dv">7</span> <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> <span class="fu">c</span>(<span class="dv">4</span>, <span class="dv">24</span>, <span class="dv">48</span>, <span class="dv">72</span>))</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>gcsf_arm <span class="ot">=</span> <span class="cf">function</span>(dose_mgkg, <span class="at">group =</span> <span class="dv">1</span><span class="dt">L</span>) {</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="fu">Arm</span>(</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>    <span class="at">name =</span> <span class="fu">paste0</span>(<span class="st">&quot;Group &quot;</span>, group),</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>    <span class="at">size =</span> <span class="dv">10</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>    <span class="at">administrations =</span> <span class="fu">list</span>(</span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>      <span class="fu">Administration</span>(</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>        <span class="at">outcome =</span> <span class="st">&quot;ABS&quot;</span>,</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>        <span class="at">timeDose =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">6</span> <span class="sc">*</span> <span class="dv">24</span>, <span class="dv">24</span>),</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>        <span class="at">dose =</span> <span class="fu">rep</span>(dose_mgkg <span class="sc">*</span> <span class="dv">75</span> <span class="sc">*</span> <span class="fu">as.numeric</span>(p[<span class="st">&quot;FF&quot;</span>]), <span class="dv">7</span>),</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>        <span class="at">tau =</span> <span class="dv">0</span></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>      )</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>    ),</span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a>    <span class="at">samplingTimes =</span> <span class="fu">list</span>(</span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>      <span class="fu">SamplingTimes</span>(<span class="at">outcome =</span> <span class="st">&quot;RespPK&quot;</span>, <span class="at">samplings =</span> pk_times),</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a>      <span class="fu">SamplingTimes</span>(<span class="at">outcome =</span> <span class="st">&quot;RespPD&quot;</span>, <span class="at">samplings =</span> anc_times)</span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a>    ),</span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a>    <span class="at">initialConditions =</span> initialConditions</span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a>  )</span>
+<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a>}</span>
+<span id="cb4-27"><a href="#cb4-27" tabindex="-1"></a></span>
+<span id="cb4-28"><a href="#cb4-28" tabindex="-1"></a>design_gcsf <span class="ot">=</span> <span class="fu">Design</span>(</span>
+<span id="cb4-29"><a href="#cb4-29" tabindex="-1"></a>  <span class="at">name =</span> <span class="st">&quot;gcsf_design&quot;</span>,</span>
+<span id="cb4-30"><a href="#cb4-30" tabindex="-1"></a>  <span class="at">arms =</span> <span class="fu">list</span>(<span class="fu">gcsf_arm</span>(<span class="dv">1</span>, <span class="dv">1</span><span class="dt">L</span>), <span class="fu">gcsf_arm</span>(<span class="dv">3</span>, <span class="dv">2</span><span class="dt">L</span>), <span class="fu">gcsf_arm</span>(<span class="dv">10</span>, <span class="dv">3</span><span class="dt">L</span>))</span>
+<span id="cb4-31"><a href="#cb4-31" tabindex="-1"></a>)</span>
+<span id="cb4-32"><a href="#cb4-32" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" tabindex="-1"></a>evaluation_gcsf <span class="ot">=</span> <span class="fu">Evaluation</span>(</span>
+<span id="cb4-34"><a href="#cb4-34" tabindex="-1"></a>  <span class="at">name =</span> <span class="st">&quot;G-CSF&quot;</span>,</span>
+<span id="cb4-35"><a href="#cb4-35" tabindex="-1"></a>  <span class="at">modelEquations =</span> modelEquations,</span>
+<span id="cb4-36"><a href="#cb4-36" tabindex="-1"></a>  <span class="at">modelParameters =</span> modelParameters,</span>
+<span id="cb4-37"><a href="#cb4-37" tabindex="-1"></a>  <span class="at">modelError =</span> modelError,</span>
+<span id="cb4-38"><a href="#cb4-38" tabindex="-1"></a>  <span class="at">outputs =</span> outputs,</span>
+<span id="cb4-39"><a href="#cb4-39" tabindex="-1"></a>  <span class="at">designs =</span> <span class="fu">list</span>(design_gcsf),</span>
+<span id="cb4-40"><a href="#cb4-40" tabindex="-1"></a>  <span class="at">fimType =</span> <span class="st">&quot;population&quot;</span>,</span>
+<span id="cb4-41"><a href="#cb4-41" tabindex="-1"></a>  <span class="at">odeSolverParameters =</span> <span class="fu">list</span>(<span class="at">atol =</span> <span class="fl">1e-8</span>, <span class="at">rtol =</span> <span class="fl">1e-8</span>)</span>
+<span id="cb4-42"><a href="#cb4-42" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="test-plot" class="section level1">
+<h1>Test plot</h1>
+<p>PK and ANC profiles for groups 1, 3 and 10 mg/kg (same layout as the
+<a href="https://github.com/timwaterhouse/optimal-design-2023">optimal-design
+tutorial</a>):</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>plot_gcsf_test <span class="ot">=</span> <span class="cf">function</span>(evaluation, <span class="at">n_points =</span> <span class="dv">200</span>) {</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  model <span class="ot">=</span> <span class="fu">defineModelWrapper</span>(<span class="fu">defineModelType</span>(evaluation), evaluation)</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  arms  <span class="ot">=</span> S7<span class="sc">::</span><span class="fu">prop</span>(S7<span class="sc">::</span><span class="fu">prop</span>(evaluation, <span class="st">&quot;designs&quot;</span>)[[<span class="dv">1</span>]], <span class="st">&quot;arms&quot;</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  times <span class="ot">=</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">240</span>, <span class="at">length.out =</span> n_points)</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>  curves <span class="ot">=</span> purrr<span class="sc">::</span><span class="fu">list_rbind</span>(purrr<span class="sc">::</span><span class="fu">map</span>(<span class="fu">seq_along</span>(arms), <span class="cf">function</span>(i) {</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    plot_arm <span class="ot">=</span> arms[[i]]</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>    S7<span class="sc">::</span><span class="fu">prop</span>(plot_arm, <span class="st">&quot;samplingTimes&quot;</span>) <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>      <span class="fu">SamplingTimes</span>(<span class="st">&quot;RespPK&quot;</span>, times),</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>      <span class="fu">SamplingTimes</span>(<span class="st">&quot;RespPD&quot;</span>, times)</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>    )</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>    m <span class="ot">=</span> <span class="fu">defineModelAdministration</span>(model, plot_arm)</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>    y <span class="ot">=</span> <span class="fu">evaluateModel</span>(m, plot_arm)</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>    <span class="fu">rbind</span>(</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">time =</span> y<span class="sc">$</span>RespPK<span class="sc">$</span>time, <span class="at">value =</span> y<span class="sc">$</span>RespPK<span class="sc">$</span>RespPK, <span class="at">model =</span> <span class="st">&quot;PK&quot;</span>,  <span class="at">group =</span> i),</span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">time =</span> y<span class="sc">$</span>RespPD<span class="sc">$</span>time, <span class="at">value =</span> y<span class="sc">$</span>RespPD<span class="sc">$</span>RespPD, <span class="at">model =</span> <span class="st">&quot;ANC&quot;</span>, <span class="at">group =</span> i)</span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>    )</span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>  }))</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>  samp_pts <span class="ot">=</span> purrr<span class="sc">::</span><span class="fu">list_rbind</span>(purrr<span class="sc">::</span><span class="fu">map</span>(<span class="fu">seq_along</span>(arms), <span class="cf">function</span>(i) {</span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>    samp <span class="ot">=</span> S7<span class="sc">::</span><span class="fu">prop</span>(arms[[i]], <span class="st">&quot;samplingTimes&quot;</span>)</span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a>    <span class="fu">rbind</span>(</span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">time =</span> S7<span class="sc">::</span><span class="fu">prop</span>(samp[[<span class="dv">1</span>]], <span class="st">&quot;samplings&quot;</span>), <span class="at">model =</span> <span class="st">&quot;PK&quot;</span>,  <span class="at">group =</span> i),</span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">time =</span> S7<span class="sc">::</span><span class="fu">prop</span>(samp[[<span class="dv">2</span>]], <span class="st">&quot;samplings&quot;</span>), <span class="at">model =</span> <span class="st">&quot;ANC&quot;</span>, <span class="at">group =</span> i)</span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a>    )</span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a>  }))</span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a>  pts <span class="ot">=</span> purrr<span class="sc">::</span><span class="fu">list_rbind</span>(purrr<span class="sc">::</span><span class="fu">map</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(samp_pts)), <span class="cf">function</span>(i) {</span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a>    row <span class="ot">=</span> samp_pts[i, ]</span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a>    sub <span class="ot">=</span> curves[curves<span class="sc">$</span>model <span class="sc">==</span> row<span class="sc">$</span>model <span class="sc">&amp;</span> curves<span class="sc">$</span>group <span class="sc">==</span> row<span class="sc">$</span>group, ]</span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a>    j   <span class="ot">=</span> <span class="fu">which.min</span>(<span class="fu">abs</span>(sub<span class="sc">$</span>time <span class="sc">-</span> row<span class="sc">$</span>time))</span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a>    <span class="fu">data.frame</span>(<span class="at">time =</span> row<span class="sc">$</span>time, <span class="at">value =</span> sub<span class="sc">$</span>value[j], <span class="at">model =</span> row<span class="sc">$</span>model, <span class="at">group =</span> row<span class="sc">$</span>group)</span>
+<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a>  }))</span>
+<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a>  <span class="fu">ggplot</span>(curves, <span class="fu">aes</span>(time, value, <span class="at">color =</span> <span class="fu">factor</span>(group))) <span class="sc">+</span></span>
+<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="fl">0.9</span>) <span class="sc">+</span></span>
+<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="at">data =</span> pts, <span class="fu">aes</span>(time, value), <span class="at">size =</span> <span class="fl">2.5</span>) <span class="sc">+</span></span>
+<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>model, <span class="at">scales =</span> <span class="st">&quot;free_y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb5-39"><a href="#cb5-39" tabindex="-1"></a>    <span class="fu">scale_color_discrete</span>(<span class="at">name =</span> <span class="st">&quot;Group&quot;</span>, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;1&quot;</span>, <span class="st">&quot;2&quot;</span>, <span class="st">&quot;3&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb5-40"><a href="#cb5-40" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb5-41"><a href="#cb5-41" tabindex="-1"></a>      <span class="at">x =</span> <span class="st">&quot;Time from first dose (hours)&quot;</span>,</span>
+<span id="cb5-42"><a href="#cb5-42" tabindex="-1"></a>      <span class="at">y =</span> <span class="st">&quot;Model predictions&quot;</span>,</span>
+<span id="cb5-43"><a href="#cb5-43" tabindex="-1"></a>      <span class="at">title =</span> <span class="st">&quot;Test plot&quot;</span></span>
+<span id="cb5-44"><a href="#cb5-44" tabindex="-1"></a>    )</span>
+<span id="cb5-45"><a href="#cb5-45" tabindex="-1"></a>}</span>
+<span id="cb5-46"><a href="#cb5-46" tabindex="-1"></a></span>
+<span id="cb5-47"><a href="#cb5-47" tabindex="-1"></a><span class="fu">plot_gcsf_test</span>(evaluation_gcsf)</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+</div>
+<div id="evaluate-the-population-fim" class="section level1">
+<h1>Evaluate the population FIM</h1>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Re-build evaluation_gcsf if needed (see Overview); then:</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>evaluation_gcsf <span class="ot">=</span> <span class="fu">run</span>(evaluation_gcsf)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">getDeterminant</span>(evaluation_gcsf) <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">getRSE</span>(evaluation_gcsf)[<span class="st">&quot;μ_NB0&quot;</span>, <span class="st">&quot;RSE&quot;</span>] <span class="sc">&lt;</span> <span class="dv">50</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">show</span>(evaluation_gcsf)</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="fu">getRSE</span>(evaluation_gcsf)</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="fu">getSE</span>(evaluation_gcsf)</span></code></pre></div>
+</div>
+<div id="compare-rse-with-poped-design-1-3-10-mgkg" class="section level1">
+<h1>Compare RSE with PopED (design 1 / 3 / 10 mg/kg)</h1>
+<p>Reference values from <code>get_rse(FIM_gcsf, poped_db_gcsf)</code>
+in the <a href="https://github.com/timwaterhouse/optimal-design-2023">optimal-design-2023</a>
+tutorial (same model, sampling grid and
+<code>groupsize = 10</code>).</p>
+<p>Run the FIM chunk above first, or in one step:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;tools/compare-gcsf-rse.R&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>poped_rse <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">KA =</span> <span class="fl">3.289140</span>, <span class="at">KEL =</span> <span class="fl">13.518742</span>, <span class="at">VD =</span> <span class="fl">12.604107</span>, <span class="at">KD =</span> <span class="fl">8.265412</span>, <span class="at">KINT =</span> <span class="fl">3.822461</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="at">KSI =</span> <span class="fl">19.528269</span>, <span class="at">KMT =</span> <span class="fl">4.066511</span>, <span class="at">KTT =</span> <span class="fl">17.017908</span>, <span class="at">NB0 =</span> <span class="fl">10.771361</span>, <span class="at">SC1 =</span> <span class="fl">20.851250</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">SM1 =</span> <span class="fl">8.289988</span>, <span class="at">SM2 =</span> <span class="fl">7.664966</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">w2_KEL =</span> <span class="fl">26.961113</span>, <span class="at">w2_VD =</span> <span class="fl">32.644613</span>, <span class="at">w2_KSI =</span> <span class="fl">31.369081</span>, <span class="at">w2_NB0 =</span> <span class="fl">41.941250</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">w2_SC1 =</span> <span class="fl">29.156946</span>, <span class="at">w2_SM1 =</span> <span class="fl">26.406506</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="at">sig_slope_PK =</span> <span class="fl">3.900224</span>, <span class="at">sig_inter_PD =</span> <span class="fl">6.541108</span>, <span class="at">sig_slope_PD =</span> <span class="fl">7.713365</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>)</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>pfim_rse <span class="ot">=</span> <span class="fu">getRSE</span>(evaluation_gcsf)</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>map <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  <span class="at">KA =</span> <span class="st">&quot;μ_KA&quot;</span>, <span class="at">KEL =</span> <span class="st">&quot;μ_KEL&quot;</span>, <span class="at">VD =</span> <span class="st">&quot;μ_VD&quot;</span>, <span class="at">KD =</span> <span class="st">&quot;μ_KD&quot;</span>, <span class="at">KINT =</span> <span class="st">&quot;μ_KINT&quot;</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  <span class="at">KSI =</span> <span class="st">&quot;μ_KSI&quot;</span>, <span class="at">KMT =</span> <span class="st">&quot;μ_KMT&quot;</span>, <span class="at">KTT =</span> <span class="st">&quot;μ_KTT&quot;</span>, <span class="at">NB0 =</span> <span class="st">&quot;μ_NB0&quot;</span>, <span class="at">SC1 =</span> <span class="st">&quot;μ_SC1&quot;</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="at">SM1 =</span> <span class="st">&quot;μ_SM1&quot;</span>, <span class="at">SM2 =</span> <span class="st">&quot;μ_SM2&quot;</span>, <span class="at">w2_KEL =</span> <span class="st">&quot;ω²_KEL&quot;</span>, <span class="at">w2_VD =</span> <span class="st">&quot;ω²_VD&quot;</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>  <span class="at">w2_KSI =</span> <span class="st">&quot;ω²_KSI&quot;</span>, <span class="at">w2_NB0 =</span> <span class="st">&quot;ω²_NB0&quot;</span>, <span class="at">w2_SC1 =</span> <span class="st">&quot;ω²_SC1&quot;</span>, <span class="at">w2_SM1 =</span> <span class="st">&quot;ω²_SM1&quot;</span>,</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>  <span class="at">sig_slope_PK =</span> <span class="st">&quot;σ_slope_RespPK&quot;</span>, <span class="at">sig_inter_PD =</span> <span class="st">&quot;σ_inter_RespPD&quot;</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>  <span class="at">sig_slope_PD =</span> <span class="st">&quot;σ_slope_RespPD&quot;</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>)</span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>cmp <span class="ot">=</span> <span class="fu">data.frame</span>(</span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>  <span class="at">parameter =</span> <span class="fu">names</span>(poped_rse),</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a>  <span class="at">PopED =</span> <span class="fu">unname</span>(poped_rse),</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a>  <span class="at">PFIM =</span> pfim_rse<span class="sc">$</span>RSE[<span class="fu">unname</span>(map)],</span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a>  <span class="at">rel_diff_pct =</span> <span class="dv">100</span> <span class="sc">*</span> <span class="fu">abs</span>(pfim_rse<span class="sc">$</span>RSE[<span class="fu">unname</span>(map)] <span class="sc">-</span> poped_rse) <span class="sc">/</span> poped_rse,</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">NULL</span></span>
+<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a>)</span>
+<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a></span>
+<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="fu">round</span>(cmp, <span class="dv">2</span>), <span class="at">caption =</span> <span class="st">&quot;RSE (%): PopED vs PFIM (design 1 / 3 / 10 mg/kg)&quot;</span>)</span></code></pre></div>
+<p>Typical PFIM vs PopED RSE (same design, after
+<code>run(evaluation_gcsf)</code>):</p>
+<table>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th align="right">PopED</th>
+<th align="right">PFIM</th>
+<th align="right">|diff| (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>KA</td>
+<td align="right">3.29</td>
+<td align="right">1.73</td>
+<td align="right">47</td>
+</tr>
+<tr class="even">
+<td>KEL</td>
+<td align="right">13.52</td>
+<td align="right">11.84</td>
+<td align="right">12</td>
+</tr>
+<tr class="odd">
+<td>VD</td>
+<td align="right">12.60</td>
+<td align="right">11.75</td>
+<td align="right">7</td>
+</tr>
+<tr class="even">
+<td>KD</td>
+<td align="right">8.27</td>
+<td align="right">4.41</td>
+<td align="right">47</td>
+</tr>
+<tr class="odd">
+<td>KINT</td>
+<td align="right">3.82</td>
+<td align="right">2.12</td>
+<td align="right">45</td>
+</tr>
+<tr class="even">
+<td>KSI</td>
+<td align="right">19.53</td>
+<td align="right">14.62</td>
+<td align="right">25</td>
+</tr>
+<tr class="odd">
+<td>KMT</td>
+<td align="right">4.07</td>
+<td align="right">3.59</td>
+<td align="right">12</td>
+</tr>
+<tr class="even">
+<td>KTT</td>
+<td align="right">17.02</td>
+<td align="right">13.92</td>
+<td align="right">18</td>
+</tr>
+<tr class="odd">
+<td>NB0</td>
+<td align="right">10.77</td>
+<td align="right">11.21</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td>SC1</td>
+<td align="right">20.85</td>
+<td align="right">19.17</td>
+<td align="right">8</td>
+</tr>
+<tr class="odd">
+<td>SM1</td>
+<td align="right">8.29</td>
+<td align="right">9.18</td>
+<td align="right">11</td>
+</tr>
+<tr class="even">
+<td>SM2</td>
+<td align="right">7.66</td>
+<td align="right">8.56</td>
+<td align="right">12</td>
+</tr>
+<tr class="odd">
+<td>ω²_KEL</td>
+<td align="right">26.96</td>
+<td align="right">29.18</td>
+<td align="right">8</td>
+</tr>
+<tr class="even">
+<td>ω²_VD</td>
+<td align="right">32.64</td>
+<td align="right">29.79</td>
+<td align="right">9</td>
+</tr>
+<tr class="odd">
+<td>ω²_KSI</td>
+<td align="right">31.37</td>
+<td align="right">34.84</td>
+<td align="right">11</td>
+</tr>
+<tr class="even">
+<td>ω²_NB0</td>
+<td align="right">41.94</td>
+<td align="right">27.10</td>
+<td align="right">35</td>
+</tr>
+<tr class="odd">
+<td>ω²_SC1</td>
+<td align="right">29.16</td>
+<td align="right">28.36</td>
+<td align="right">3</td>
+</tr>
+<tr class="even">
+<td>ω²_SM1</td>
+<td align="right">26.41</td>
+<td align="right">26.23</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td>σ_slope PK</td>
+<td align="right">3.90</td>
+<td align="right">1.96</td>
+<td align="right">50</td>
+</tr>
+<tr class="even">
+<td>σ_inter PD</td>
+<td align="right">6.54</td>
+<td align="right">3.05</td>
+<td align="right">53</td>
+</tr>
+<tr class="odd">
+<td>σ_slope PD</td>
+<td align="right">7.71</td>
+<td align="right">13.22</td>
+<td align="right">71</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Agreement:</strong> fixed effects <code>NB0</code>,
+<code>KEL</code>, <code>VD</code>, <code>SC1</code>, <code>SM1</code>,
+<code>SM2</code> and most IIV terms (<code>ω²_KEL</code>,
+<code>ω²_VD</code>, <code>ω²_SC1</code>, <code>ω²_SM1</code>) are within
+about <strong>15%</strong> of PopED.</p>
+<p><strong>Larger gaps:</strong> <code>KA</code>, <code>KD</code>,
+<code>KINT</code>, <code>ω²_NB0</code>, and residual-error RSE reflect
+differences between PopED’s mrgsolve-based FIM and PFIM’s
+finite-difference FIM on this large ODE system — not a singular FIM
+(<code>getDeterminant(evaluation_gcsf) &gt; 0</code>) or a mismatched
+design.</p>
+</div>
+<div id="pfim-plots-after-evaluation" class="section level1">
+<h1>PFIM plots after evaluation</h1>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>plotOptions <span class="ot">=</span> <span class="fu">list</span>(<span class="at">unitTime =</span> <span class="st">&quot;hour&quot;</span>, <span class="at">unitOutcomes =</span> <span class="fu">c</span>(<span class="st">&quot;ng/mL&quot;</span>, <span class="st">&quot;cells/uL&quot;</span>))</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="fu">plotEvaluation</span>(evaluation_gcsf, plotOptions)</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="fu">plotRSE</span>(evaluation_gcsf)</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="fu">plotSE</span>(evaluation_gcsf)</span></code></pre></div>
+</div>
+<div id="compare-candidate-dose-sets" class="section level1">
+<h1>Compare candidate dose sets</h1>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>candidate_doses <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="st">`</span><span class="at">Design 1</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">10</span>),</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="st">`</span><span class="at">Design 2</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.3</span>, <span class="dv">1</span>, <span class="dv">3</span>),</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="st">`</span><span class="at">Design 3</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.3</span>, <span class="dv">1</span>, <span class="dv">10</span>),</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="st">`</span><span class="at">Design 4</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.1</span>, <span class="dv">1</span>, <span class="dv">3</span>)</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>)</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>purrr<span class="sc">::</span><span class="fu">imap</span>(candidate_doses, <span class="cf">function</span>(doses, label) {</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  d <span class="ot">=</span> <span class="fu">Design</span>(<span class="at">name =</span> label, <span class="at">arms =</span> purrr<span class="sc">::</span><span class="fu">imap</span>(doses, <span class="sc">~</span> <span class="fu">gcsf_arm</span>(.x, .y)))</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  ev <span class="ot">=</span> <span class="fu">Evaluation</span>(</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>    <span class="at">name =</span> label,</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>    <span class="at">modelEquations =</span> modelEquations,</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>    <span class="at">modelParameters =</span> modelParameters,</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>    <span class="at">modelError =</span> modelError,</span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>    <span class="at">outputs =</span> outputs,</span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>    <span class="at">designs =</span> <span class="fu">list</span>(d),</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a>    <span class="at">fimType =</span> <span class="st">&quot;population&quot;</span>,</span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>    <span class="at">odeSolverParameters =</span> <span class="fu">list</span>(<span class="at">atol =</span> <span class="fl">1e-6</span>, <span class="at">rtol =</span> <span class="fl">1e-6</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>  )</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a>  <span class="fu">c</span>(<span class="at">design =</span> label, <span class="fu">t</span>(<span class="fu">round</span>(<span class="fu">getRSE</span>(<span class="fu">run</span>(ev)), <span class="dv">2</span>)))</span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>})</span></code></pre></div>
+<div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
+<div id="ref-Krzyzanski2010" class="csl-entry">
+Krzyzanski, Wojciech, Paweł Wiczling, Peter J. Lowe, Etienne Pigeolet,
+Markus Fink, Amin Berghout, and Stephan Balser. 2010. <span>“Population
+Modeling of Filgrastim <span>PK</span>-<span>PD</span> in Healthy Adults
+Following Intravenous and Subcutaneous Administrations.”</span>
+<em>Journal of Clinical Pharmacology</em> 50 (9 Suppl): 101S–112S. <a href="https://doi.org/10.1177/0091270010376966">https://doi.org/10.1177/0091270010376966</a>.
+</div>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
