@@ -9,8 +9,14 @@ plotEvaluationResults(arm, ...)
 \arguments{
 \item{arm}{An \code{Arm} object.}
 
-\item{...}{Evaluation outputs and plot options for the \code{Arm} method.}
+\item{...}{Method-specific plotting inputs (see methods).}
+}
+\value{
+Nested list of ggplot objects for model responses.
 }
 \description{
 ggplot of predicted responses with sampling points
+
+Default method for \code{Arm}.
 }
+\keyword{internal}

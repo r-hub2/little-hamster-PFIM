@@ -9,6 +9,18 @@ LibraryOfPDModels(models = list())
 \arguments{
 \item{models}{Named list of built-in PD model equation definitions.}
 }
+\value{
+An S7 object of class \code{LibraryOfPDModels}.
+}
 \description{
 Built-in pharmacodynamic (PD) model library (Emax, turnover, etc.).
+
+Entries are named lists of equation strings (\code{RespPD} for immediate
+response, \code{Deriv_E} for turnover ODEs). Combined with a PK model via
+\code{definePKPDModel()}.
+}
+\examples{
+\donttest{
+names(prop(pdModelLibrary, "models"))[1:5]
+}
 }

@@ -2,70 +2,89 @@
 #' @description
 #' Individual (subject-level) Fisher information matrix.
 #'
-#' Supports covariates and IOV: gradients and residual variance are averaged over
-#' covariate combinations and occasions (same expectation as for population designs).
+#' Across covariate strata (and arms at design level), subject FIMs are combined
+#' by averaging covariances:
+#' \eqn{\bar C = \sum_s w_s M_s^{-1}}, \eqn{M_{\mathrm{eff}} = \bar C^{-1}}.
+#' A positive weight on a non-identifiable protocol yields \code{Inf} SE.
+#' This mixture is not comparable to summing Fisher matrices (PFIM 6 / PopED).
+#' Covariate \code{beta} effects are not subject parameters and are omitted.
+#' With IOV, each occasion uses
+#' \eqn{V_k = R_k + F_k\,\mathrm{diag}(\gamma^2)\,F_k^\top} for the
+#' \eqn{\mu} and residual \eqn{\sigma} blocks.
+#'
+#' Arm-level matrices are per-subject.
 #'
 #' @inheritParams Fim
 #' @details
-#' Block-diagonal structure:
+#' Block-diagonal structure for a single stratum:
 #' \deqn{M_I = \mathrm{bdiag}(M_\mu, M_\sigma)}
-#' where \eqn{M_\mu = G^\top V^{-1} G} and \eqn{M_\sigma} is the variance-effects block.
+#' where \eqn{M_\mu = G^\top V^{-1} G} and \eqn{M_\sigma} is the residual
+#' variance-effects block (with the same \eqn{V} under IOV).
+#' @return An \code{IndividualFim} object (filled by \code{run()}).
+#' @examples
+#' \donttest{
+#' source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+#' }
 #' @include Fim.R
+#' @include pfim-fim-report-render.R
+#' @include PFIMProject.R
 #' @export
 
 IndividualFim = new_class( "IndividualFim", package = "PFIM", parent = Fim )
 S4_register( IndividualFim )
 
-#' Variance block of the population FIM
+#' Variance block of the individual FIM (\eqn{\partial V / \partial \sigma} form).
+#'
+#' Flat path: one residual \eqn{V}. Nested cov/IOV path: harmonic mean of
+#' per-stratum blocks (see \code{.evaluateIndBayesMixtureFim}).
 #' @name evaluateVarianceFIM
-#' @export
+#' @keywords internal
 
 method( evaluateVarianceFIM, list( IndividualFim, Model, Arm ) ) = function( fim, model, arm ) {
 
+  if ( .isNestedArmEvaluation( prop( arm, "evaluationVariance" ) ) ) {
+    feCols = .pfimSubjectFeCols( .fimFixedEffectColumnNames( model, arm ) )
+    return( .evaluateIndBayesMixtureFim( model, arm, feCols, bayesian = FALSE ) )
+  }
+
   ev    = getArmEvaluationVarianceFlat( arm )
   V     = as.matrix( ev$errorVariance )
   V_inv = .safeCholInv( V )
 
-  list( MFVar = .computeMFVar( V_inv, ev$sigmaDerivatives ), V = V )
+  list( MFVar = .computeMFVar( V_inv, ev$sigmaDerivatives ), V = V, V_inv = V_inv )
 }
 
-#' Compute the FIM for one arm
+#' Compute the individual FIM for one arm.
+#'
+#' Fixed-effect block plus residual variance block; not scaled by arm size.
+#' Cov/IOV strata use the harmonic-mean subject FIM. No \eqn{\omega}/\eqn{\gamma}
+#' block - only \eqn{\mu} and residual \eqn{\sigma} (\eqn{\beta} omitted).
 #' @name evaluateFim
-#' @export
+#' @keywords internal
 
 method( evaluateFim, list( IndividualFim, Model, Arm ) ) = function( fim, model, arm ) {
 
-  ev    = getArmEvaluationVarianceFlat( arm )
-  V     = as.matrix( ev$errorVariance )
-  V_inv = .safeCholInv( V )
-  MFVar = .computeMFVar( V_inv, ev$sigmaDerivatives )
+  feCols = .pfimSubjectFeCols( .fimFixedEffectColumnNames( model, arm ) )
 
-  feCols = .fimFixedEffectColumnNames( model, arm )
-  G      = .gradientMatrix( arm, feCols, model )
-  MFbeta = crossprod( G, V_inv ) %*% G
+  if ( .isNestedArmEvaluation( prop( arm, "evaluationGradients" ) ) ) {
+    harm = .evaluateIndBayesMixtureFim( model, arm, feCols, bayesian = FALSE )
+    prop( fim, "fisherMatrix" ) = harm$fisherMatrix
+    return( fim )
+  }
 
-  prop( fim, "fisherMatrix" ) = as.matrix( bdiag( MFbeta, MFVar ) )
+  varBlock = evaluateVarianceFIM( fim, model, arm )
+  G        = .gradientMatrix( arm, feCols, model )
+  MFbeta   = crossprod( G, varBlock$V_inv ) %*% G
+
+  prop( fim, "fisherMatrix" ) = as.matrix( bdiag( MFbeta, varBlock$MFVar ) )
   fim
 }
 
-# setOptimalArms
-#' Store optimal arm designs on the FIM object
-#' @name setOptimalArms
-#' @export
-method( setOptimalArms, list( IndividualFim, MultiplicativeAlgorithm ) ) =
-  function( fim, optimizationAlgorithm )
-    .setOptimalArmsMultiplicative( optimizationAlgorithm )
-
-#' Store optimal arm designs on the FIM object
-#' @name setOptimalArms
-#' @export
-method( setOptimalArms, list( IndividualFim, FedorovWynnAlgorithm ) ) =
-  function( fim, optimizationAlgorithm )
-    .setOptimalArmsFedorovWynn( optimizationAlgorithm )
-
-#' Attach evaluated FIM results to a project
+#' Attach evaluated individual FIM results (labels, SE/RSE, condition numbers).
+#'
+#' Label order: Greek-prefixed \code{mu}, then \code{sigma} (no \code{beta}).
 #' @name setEvaluationFim
-#' @export
+#' @keywords internal
 
 method( setEvaluationFim, IndividualFim ) = function( fim, evaluation ) {
 
@@ -73,33 +92,28 @@ method( setEvaluationFim, IndividualFim ) = function( fim, evaluation ) {
   fe     = .fimFixedEffectLabels( evaluation, greek )
   sigma  = .fimSigmaBlockLabels( evaluation, greek )
 
-  allNames = c( fe$columnNamesMu, fe$columnNamesBeta, sigma$columnNamesSigma )
-  pVals    = c( fe$muValues, fe$betaValues, sigma$sigmaValues )
+  # Subject FIM omits covariate beta columns.
+  allNames = c( fe$columnNamesMu, sigma$columnNamesSigma )
+  pVals    = c( fe$muValues, sigma$sigmaValues )
 
   M = prop( fim, "fisherMatrix" )
 
-  # if ( ncol( M ) != length( allNames ) )
-  #   stop( sprintf(
-  #     "IndividualFim setEvaluationFim: FIM dim %d != %d column names.",
-  #     ncol( M ), length( allNames )
-  #   ), call. = FALSE )
+  if ( ncol( M ) != length( allNames ) )
+    stop( sprintf(
+      "IndividualFim setEvaluationFim: FIM dim %d != %d column names.",
+      ncol( M ), length( allNames )
+    ), call. = FALSE )
 
   dimnames( M ) = list( allNames, allNames )
 
-  feNames         = c( fe$columnNamesMu, fe$columnNamesBeta )
+  feNames         = fe$columnNamesMu
   fixedEffects    = M[ feNames, feNames, drop = FALSE ]
   varianceEffects = M[ sigma$columnNamesSigma, sigma$columnNamesSigma, drop = FALSE ]
 
-  se = .fimBuildSeAndRse( M, allNames, pVals, abs_denominator = FALSE )
-
-  prop( fim, "fisherMatrix"              ) = M
-  prop( fim, "fixedEffects"              ) = fixedEffects
-  prop( fim, "varianceEffects"           ) = varianceEffects
-  prop( fim, "condNumberFixedEffects"    ) = .conditionNumber( fixedEffects )
-  prop( fim, "condNumberVarianceEffects" ) = .conditionNumber( varianceEffects )
-  prop( fim, "SEAndRSE"                  ) = se
-
-  fim
+  se = .fimBuildSeAndRse( M, allNames, pVals, abs_denominator = TRUE )
+  .fimStoreEvaluationResult(
+    fim, M, fixedEffects, se, varianceEffects = varianceEffects
+  )
 }
 
 #' Print FIM summaries to the console
@@ -121,175 +135,77 @@ method( showFIM, IndividualFim ) = function( fim ) {
   cn2 = prop( fim, "condNumberVarianceEffects" )
 
   cat( "\n*********************************************** \n",
-       " Determinant, condition numbers and D-criterion \n",
+       " log-Determinant, condition numbers and D-criterion \n",
        "*********************************************** \n\n" )
-  cat( "Determinant:",  as.numeric( det( M ) ),       "\n" )
+  cat( "log-Determinant:",  as.numeric( .fimLogDeterminant( M ) ),       "\n" )
   cat( "D-criterion:",  as.numeric( Dcriterion(fim) ), "\n" )
-  cat( "Conditional number (fixed effects):",    as.numeric( cn1 ), "\n" )
-  cat( "Conditional number (variance effects):", as.numeric( cn2 ), "\n" )
+  cat( "Condition number (fixed effects):",    as.numeric( cn1 ), "\n" )
+  cat( "Condition number (variance effects):", as.numeric( cn2 ), "\n" )
+  .fimPrintSingularStatus( fim )
   .hdr( "Parameters estimation" )
   .printFimSeAndRse( fim )
 
+  .fimShowSymbolLegend(
+    rownames( prop( fim, "fisherMatrix" ) ),
+    include_sigma = TRUE,
+    mu_label = "\u03bc  = fixed effects",
+    sigma_label = "\u03c3  = residual error"
+  )
   invisible( fim )
 }
 
 # SE / RSE bar charts
+#' Build Individual FIM SE/RSE bar plot data and figure.
+#' @param fim \code{IndividualFim} object.
+#' @param evaluation \code{PFIMProject} providing labels and fitted FIM.
+#' @param metric \code{"SE"} or \code{"RSE"}.
+#' @return \code{ggplot} object of parameter uncertainty bars.
+#' @noRd
+#' @keywords internal
 .individualSEPlot = function( fim, evaluation, metric ) {
+  fim   = setEvaluationFim( prop( evaluation, "fim" ), evaluation )
+  seDF  = prop( fim, "SEAndRSE" )$SEAndRSE
+  greekC = .greekConsole
+  fe    = .fimFixedEffectLabels( evaluation, greekC )
+  sigma = .fimSigmaBlockLabels( evaluation, greekC )
+  facet = function( key ) .pfimSeRseFacetLabel( metric, key )
 
-  parameters = prop( evaluation, "modelParameters" )
-  modelError = prop( evaluation, "modelError"       )
-  fim        = setEvaluationFim( prop( evaluation, "fim" ), evaluation )
-  se         = prop( fim, "SEAndRSE" )
-  greek      = .greekPlot   # defined in Fim.R
-
-  paramsMu = parameters |>
-    keep( ~ !isTRUE( prop( .x, "fixedMu" ) ) ) |>
-    keep( ~ prop( prop( .x, "distribution" ), "mu" ) != 0 ) |>
-    map_chr( ~ prop( .x, "name" ) )
-
-  paramsSigma = modelError |>
-    map( function( err ) {
-      out = prop( err, "output" )
-      c(
-        if ( prop( err, "sigmaInter" ) != 0 && !prop( err, "sigmaInterFixed" ) )
-          paste0( greek[ "sigma" ], "_inter_", out ),
-        if ( prop( err, "sigmaSlope"  ) != 0 && !prop( err, "sigmaSlopeFixed"  ) )
-          paste0( greek[ "sigma" ], "_slope_", out )
-      )
-    }) |> unlist( use.names = FALSE )
-
-  y_vals = if ( metric == "SE" ) se$SE$SE else se$RSE$RSE
-  cats   = paste0( metric, " ",
-                   c( rep( greek[ "mu"    ], length( paramsMu    ) ),
-                      rep( greek[ "sigma" ], length( paramsSigma ) ) ) )
-
-  df = data.frame( Parameter = c( paramsMu, paramsSigma ), y = y_vals, cat = cats )
+  # SE/RSE barplots: mu / sigma (beta omitted from subject FIM).
+  n_mu    = length( fe$columnNamesMu )
+  n_sigma = length( sigma$columnNamesSigma )
+  idx = seq_len( n_mu + n_sigma )
+  paramLabels = c(
+    .stripGreekPrefix( fe$columnNamesMu,       greekC[ "mu"    ] ),
+    .stripGreekPrefix( sigma$columnNamesSigma, greekC[ "sigma" ] )
+  )
+  cats = c(
+    rep( facet( "mu"    ), n_mu ),
+    rep( facet( "sigma" ), n_sigma )
+  )
+  y_vals = if ( metric == "SE" ) seDF$SE[ idx ] else seDF$RSE[ idx ]
+  df = data.frame( Parameter = paramLabels, y = y_vals, cat = cats )
   names( df )[ 2L ] = metric
-
-  ggplot( df, aes( x = .data[["Parameter"]], y = .data[[ metric ]] ) ) +
-    geom_bar( stat = "identity", show.legend = FALSE ) +
-    facet_wrap( ~ factor( cat, levels = unique( cats ) ), scales = "free_x" ) +
-    theme( legend.position = "none",
-           plot.title  = element_text( size = 16, hjust = 0.5 ),
-           axis.text.x = element_text( size = 16, angle = 90, vjust = 0.5 ) )
+  .fimSeRseBarPlot( df, metric, unique( cats ) )
 }
 
-#' Barplot of standard errors from a FIM
-#' @name plotSEFIM
-#' @export
+#' @keywords internal
 method( plotSEFIM,  list( IndividualFim, PFIMProject ) ) =
   function( fim, evaluation ) .individualSEPlot( fim, evaluation, "SE"  )
 
-#' Barplot of relative standard errors from a FIM
-#' @name plotRSEFIM
-#' @export
+#' @keywords internal
 method( plotRSEFIM, list( IndividualFim, PFIMProject ) ) =
   function( fim, evaluation ) .individualSEPlot( fim, evaluation, "RSE" )
 
 #' FIM tables for HTML reports
 #' @name tablesForReport
-#' @export
+#' @keywords internal
 
 method( tablesForReport, list( IndividualFim, PFIMProject ) ) = function( fim, evaluation ) {
-
-  parameters                = prop( evaluation, "modelParameters" )
-  modelError                = prop( evaluation, "modelError"       )
-  SEAndRSE                  = prop( fim, "SEAndRSE" )$SEAndRSE
-  M                         = prop( fim, "fisherMatrix"            )
-  fe                        = as.matrix( prop( fim, "fixedEffects"    ) )
-  ve                        = as.matrix( prop( fim, "varianceEffects" ) )
-  condNumberFixedEffects    = prop( fim, "condNumberFixedEffects"    )
-  condNumberVarianceEffects = prop( fim, "condNumberVarianceEffects" )
-  greek                     = .greekLatex   # defined in Fim.R
-
-  columnNamesMu = parameters |>
-    keep( ~ !isTRUE( prop( .x, "fixedMu" ) ) ) |>
-    keep( ~  prop( prop( .x, "distribution" ), "mu" ) != 0 ) |>
-    map_chr( ~ paste0( greek[ "mu" ], prop( .x, "name" ), "}$" ) )
-
-  columnNamesSigma = modelError |>
-    map( function( err ) {
-      out = prop( err, "output" )
-      c(
-        if ( prop( err, "sigmaInter" ) != 0 && !prop( err, "sigmaInterFixed" ) )
-          paste0( greek[ "sigma" ], "{inter}_{", out, "}$" ),
-        if ( prop( err, "sigmaSlope"  ) != 0 && !prop( err, "sigmaSlopeFixed"  ) )
-          paste0( greek[ "sigma" ], "{slope}_{", out, "}$" )
-      )
-    }) |> unlist( use.names = FALSE )
-
-  dimnames( fe ) = list( columnNamesMu,    columnNamesMu    )
-  dimnames( ve ) = list( columnNamesSigma, columnNamesSigma )
-
-  .kbl_styled = function( df )
-    kbl( df ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE,
-                   position = "center", font_size = 13 )
-
-  FIMCriteriaTable = data.frame(
-    determinant               = det( M ),
-    dcriterion                = Dcriterion( fim ),
-    condNumberFixedEffects    = condNumberFixedEffects,
-    condNumberVarianceEffects = condNumberVarianceEffects
-  ) |>
-    kbl( col.names = c( "", "", "Fixed effects", "Variance effects" ),
-         align = "c", format = "html" ) |>
-    add_header_above( c( "Determinant" = 1, "D-criterion" = 1,
-                         "Condition number" = 2 ) ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE,
-                   position = "center", font_size = 13 )
-
-  SEAndRSETable = data.frame(
-    c( columnNamesMu, columnNamesSigma ), round( SEAndRSE, 3 )
-  ) |>
-    (\( df ) { row.names( df ) = NULL; df })() |>
-    kbl( col.names = c( "Parameters", "Parameter values", "SE", "RSE (%)"),
-         align = "c" ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE,
-                   position = "center", font_size = 13 )
-
-  list( fixedEffectsTable    = .kbl_styled( fe ),
-        varianceEffectsTable = .kbl_styled( ve ),
-        FIMCriteriaTable     = FIMCriteriaTable,
-        SEAndRSETable        = SEAndRSETable )
+  .fimTablesForReportStandard( fim, evaluation )
 }
-
-# Report rendering
-# .renderReport and .renderEvalReport are defined in Fim.R.
-# .reportIndividualPath is REMOVED â€” .reportTemplatePath (Fim.R) replaces it.
 
 #' Render the evaluation HTML report
 #' @name generateReportEvaluation
-#' @export
+#' @keywords internal
 method( generateReportEvaluation, IndividualFim ) =
   .renderEvalReport( "EvaluationIndividualFIM.Rmd" )
-
-#' Render the optimization HTML report
-#' @name generateReportOptimization
-#' @export
-method( generateReportOptimization, list( IndividualFim, MultiplicativeAlgorithm ) ) =
-  .renderReport( "OptimizationMultiplicativeAlgorithmIndividualFIM.Rmd" )
-
-#' Render the optimization HTML report
-#' @name generateReportOptimization
-#' @export
-method( generateReportOptimization, list( IndividualFim, FedorovWynnAlgorithm ) ) =
-  .renderReport( "OptimizationFedorovWynnAlgorithmIndividualFIM.Rmd" )
-
-#' Render the optimization HTML report
-#' @name generateReportOptimization
-#' @export
-method( generateReportOptimization, list( IndividualFim, SimplexAlgorithm ) ) =
-  .renderReport( "OptimizationSimplexAlgorithmIndividualFIM.Rmd" )
-
-#' Render the optimization HTML report
-#' @name generateReportOptimization
-#' @export
-method( generateReportOptimization, list( IndividualFim, PSOAlgorithm ) ) =
-  .renderReport( "OptimizationPSOAlgorithmIndividualFIM.Rmd" )
-
-#' Render the optimization HTML report
-#' @name generateReportOptimization
-#' @export
-method( generateReportOptimization, list( IndividualFim, PGBOAlgorithm ) ) =
-  .renderReport( "OptimizationPGBOAlgorithmIndividualFIM.Rmd" )

@@ -19,7 +19,8 @@ Rules (in order):
 \enumerate{
   \item If any \code{CategoricalCovariateWithIOV} is present, use the common
         sequence length (e.g. 2, 3, or 4 periods).
-  \item Else if any parameter has \code{gamma > 0} (random IOV), use 2 occasions.
+  \item Else if any parameter has \code{gamma > 0} (random IOV), default to 2
+        occasions; set \code{numberOfOccasions >= 2} on the project for more periods.
   \item Else use 1 occasion.
 }
 }

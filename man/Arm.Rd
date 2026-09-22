@@ -9,14 +9,14 @@ Arm(
   size = numeric(0),
   administrations = list(),
   initialConditions = list(),
+  initialCondition = NULL,
   samplingTimes = list(),
   administrationsConstraints = list(),
   samplingTimesConstraints = list(),
   evaluationModel = list(),
   evaluationGradients = list(),
   evaluationVariance = list(),
-  evaluationFim = Fim(),
-  covariateSampling = CovariateSamplingMethods()
+  evaluationFim = NULL
 )
 }
 \arguments{
@@ -26,7 +26,15 @@ Arm(
 
 \item{administrations}{List of \code{Administration} objects.}
 
-\item{initialConditions}{List of ODE initial conditions (name = variable, value = numeric).}
+\item{initialConditions}{List of ODE initial conditions (name = state).
+Values may be numeric or a character expression in typical values and
+\code{dose_<state>} (e.g. \code{"dose_Cc/V"}). Expressions are evaluated
+in a sealed environment (no session symbols). List order does not set
+the deSolve state order (that follows \code{Deriv_*} declaration).
+In event-based bolus mode the value for a compartment dosed at \code{t = 0}
+is replaced by 0: the dose mass enters through the event table.}
+
+\item{initialCondition}{Alias of \code{initialConditions}.}
 
 \item{samplingTimes}{List of \code{SamplingTimes} objects.}
 
@@ -41,10 +49,18 @@ Arm(
 \item{evaluationVariance}{Residual variance structure for the arm.}
 
 \item{evaluationFim}{FIM object after \code{evaluateFim}.}
-
-\item{covariateSampling}{Optional \code{CovariateSamplingMethods} object.}
+}
+\value{
+An S7 object of class \code{Arm}.
 }
 \description{
 One experimental arm: subjects, dosing, sampling times, and slots filled during
 design evaluation (model predictions, gradients, variance, FIM).
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+arm = prop(prop(ev, "designs")[[1L]], "arms")[[1L]]
+length(prop(prop(arm, "samplingTimes")[[1L]], "samplings"))
+}
 }

@@ -1,24 +1,25 @@
-#' HTML report for an optimization run
+#' HTML evaluation report.
+#'
+#' Assembles model / design / FIM kables and response / SI / SE / RSE plots, then
+#' dispatches to the FIM-type R Markdown template via
+#' \code{generateReportEvaluation()}.
+#' Administration / initial-design tables use design 1 only; response and SI
+#' plots cover every design in \code{designs}.
+#' @rdname Report
 #' @name Report
 #' @export
 
 method( Report, Evaluation ) = function( pfimproject, outputPath, outputFile, plotOptions )
 {
-  projectName       = prop( pfimproject, "name"    )
+  projectName       = .pfimProjectNameOrDefault( pfimproject )
   evaluationOutputs = prop( pfimproject, "outputs" )
 
-  # Model equations (same pipeline as run(): library models must be resolved first)
+  # Same rebuild as run(), but without FD stencil (report needs predictions only).
   model          = rebuildEvalModel( pfimproject, finiteDifference = FALSE )
   modelEquations = prop( model, "modelEquations" )
 
   # Model error
-  modelErrorData = prop( pfimproject, "modelError" ) |>
-    map( getModelErrorData ) |>
-    map( ~ as.data.frame( .x, stringsAsFactors = FALSE ) ) |>
-    list_rbind()
-  colnames( modelErrorData ) = c( "Output", "Type", "$\\sigma_{slope}$", "$\\sigma_{inter}$" )
-  modelErrorTable = kbl( modelErrorData, align = c( "c","c","c","c" ) ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE, position = "center", font_size = 13 )
+  modelErrorTable = .buildModelErrorKable( prop( pfimproject, "modelError" ) )
 
   # Model parameters table (with IOV column)
   modelParametersTable = .buildModelParametersKable( prop( pfimproject, "modelParameters" ) )
@@ -30,28 +31,32 @@ method( Report, Evaluation ) = function( pfimproject, outputPath, outputFile, pl
   covariatesTable     = .buildCovariatesKable( modelCovariates )          # NULL if no covariates
   covariateTestTables = if ( hasCov ) .buildCovariateTestSection( pfimproject ) else NULL
 
-  # Arm tables
-  designs      = prop( pfimproject, "designs" )
-  designsNames = map_chr( designs, "name" )
-  arms         = map( designs, ~ prop( .x, "arms" ) )
-  armsData     = list_flatten( map( pluck( arms, 1 ), getArmData ) )
+  # Arm tables (administration uses the first design; plots cover all designs)
+  designs  = prop( pfimproject, "designs" )
+  armsData = .armsDataFromEvaluation( pfimproject )
 
-  # Administration table
-  administrationData = list_flatten( map( pluck( arms, 1 ), armAdministration ) ) |>
+  administrationData = list_flatten( map(
+    prop( designs[[ 1L ]], "arms" ),
+    ~ armAdministration( .x, prop( designs[[ 1L ]], "name" ) )
+  ) ) |>
     map( ~ as.data.frame( .x, stringsAsFactors = FALSE ) ) |>
     list_rbind()
   colnames( administrationData ) = c( "Design name", "Arms name", "Number of subjects",
                                       "Outcome", "Dose", "Time dose", "$\\tau$", "$T_{inf}$" )
-  administrationTable = kbl( administrationData, align = c( "l","l","l","c","c","c","c" ) ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE, position = "center", font_size = 13 )
+  administrationTable = .kblReportStyled(
+    administrationData,
+    align = .kblAlign( ncol( administrationData ), 3L )
+  )
 
   # Initial design table
   initialDesignData = armsData |>
     map( ~ as.data.frame( .x, stringsAsFactors = FALSE ) ) |>
     list_rbind()
   colnames( initialDesignData ) = c( "Arms name", "Number of subjects", "Outcome", "Dose", "Sampling times" )
-  initialDesignTable = kbl( initialDesignData, align = c( "l","c","c","c" ) ) |>
-    kable_styling( bootstrap_options = "hover", full_width = FALSE, position = "center", font_size = 13 )
+  initialDesignTable = .kblReportStyled(
+    initialDesignData,
+    align = .kblAlign( ncol( initialDesignData ), 1L )
+  )
 
   # Fisher matrix, SE/RSE tables
   fim                   = prop( pfimproject, "fim" )
@@ -65,23 +70,26 @@ method( Report, Evaluation ) = function( pfimproject, outputPath, outputFile, pl
   plotRSEBars     = plotRSE( pfimproject )
 
   # Assemble and render
-  reportTables = list(
-    evaluationOutputs      = evaluationOutputs,
-    modelEquations         = modelEquations,
-    modelErrorTable        = modelErrorTable,
-    modelParametersTable   = modelParametersTable,
-    covariatesTable        = covariatesTable,
-    covariateTestTables    = covariateTestTables,
-    administrationTable    = administrationTable,
-    initialDesignTable     = initialDesignTable,
-    fimInitialDesignTable  = fimInitialDesignTable,
-    plotsEvaluation        = plotsEvaluation,
-    plotSensitivityIndices = plotsSI,
-    plotSE                 = plotSEBars,
-    plotRSE                = plotRSEBars,
-    fim                    = fim,
-    pfimproject            = pfimproject,
-    projectName            = projectName
+  reportTables = c(
+    list(
+      evaluationOutputs      = evaluationOutputs,
+      modelEquations         = modelEquations,
+      modelErrorTable        = modelErrorTable,
+      modelParametersTable   = modelParametersTable,
+      covariatesTable        = covariatesTable,
+      covariateTestTables    = covariateTestTables,
+      administrationTable    = administrationTable,
+      initialDesignTable     = initialDesignTable,
+      fimInitialDesignTable  = fimInitialDesignTable,
+      plotsEvaluation        = plotsEvaluation,
+      plotSensitivityIndices = plotsSI,
+      plotSE                 = plotSEBars,
+      plotRSE                = plotRSEBars,
+      fim                    = fim,
+      pfimproject            = pfimproject,
+      projectName            = projectName
+    ),
+    .covReportFlags( hasCov, covariateTestTables, covariatesTable )
   )
 
   generateReportEvaluation( fim, reportTables,

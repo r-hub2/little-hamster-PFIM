@@ -8,6 +8,7 @@
 #' @param solverInputs                           A list with the solver inputs.
 #' @inheritParams Model
 #' @include ModelAnalytic.R
+#' @return An S7 object of class \code{ModelAnalyticSteadyState}.
 #' @export
 
 ModelAnalyticSteadyState = new_class( "ModelAnalyticSteadyState",
@@ -21,6 +22,10 @@ ModelAnalyticSteadyState = new_class( "ModelAnalyticSteadyState",
                                       ))
 
 
+#' Compile bolus / oral analytic wrappers at steady state (\code{tau} in formals).
+#' @return Updated model with compiled analytic wrappers.
+#' @name defineModelWrapper
+#' @keywords internal
 method( defineModelWrapper, ModelAnalyticSteadyState ) = function( model, evaluation ) {
 
   outcomesWithAdministration = .getOutcomesFromEvaluation( evaluation )
@@ -28,23 +33,24 @@ method( defineModelWrapper, ModelAnalyticSteadyState ) = function( model, evalua
   parameters     = prop( evaluation, "modelParameters" )
   parameterNames = map_chr( parameters, "name" )
   doseNames      = paste0( "dose_", outcomesWithAdministration )
-  timeNames      = paste0( "t_",    outcomesWithAdministration )
+  timeNamesAdmin = paste0( "t_",    outcomesWithAdministration )
 
+  # Administered vs passive equations (PD typically has no dose_*).
   equations            = prop( evaluation, "modelEquations" )
   equationsWithAdmin   = equations[  names( equations ) %in% outcomesWithAdministration ]
   equationsWithNoAdmin = equations[ !names( equations ) %in% outcomesWithAdministration ]
 
-  outputsForEvaluation = prop( evaluation, "outputs" )
-  outputAdmin   = unlist( outputsForEvaluation[[1L]] )
-  outputNoAdmin = if ( length( outputsForEvaluation ) >= 2L ) unlist( outputsForEvaluation[[2L]] ) else character(0L)
+  outputAdmin   = names( equationsWithAdmin )
+  outputNoAdmin = names( equationsWithNoAdmin )
+  timeNamesNoAdmin = .libraryEquationTimeNames( evaluation, outputNoAdmin )
 
-  # Steady-state adds "tau" to the function arguments
-  functionArgumentsWithAdmin   = unique( c( doseNames, parameterNames, timeNames, "tau" ) )
-  functionArgumentsWithNoAdmin = unique( c( outcomesWithAdministration, parameterNames, timeNames, "tau" ) )
+  # Steady-state closed forms need the dosing interval tau.
+  functionArgumentsWithAdmin   = unique( c( doseNames, parameterNames, timeNamesAdmin, "tau" ) )
+  functionArgumentsWithNoAdmin = unique( c( outcomesWithAdministration, parameterNames, timeNamesNoAdmin, "tau" ) )
 
   prop( model, "wrapperModelAnalytic" ) = list(
-    functionDefinitionWithAdmin   = .buildAnalyticWrapper( equationsWithAdmin,   functionArgumentsWithAdmin,   timeNames, outputAdmin   ),
-    functionDefinitionWithNoAdmin = .buildAnalyticWrapper( equationsWithNoAdmin, functionArgumentsWithNoAdmin, timeNames, outputNoAdmin )
+    functionDefinitionWithAdmin   = .buildAnalyticWrapper( equationsWithAdmin,   functionArgumentsWithAdmin,   timeNamesAdmin,   outputAdmin   ),
+    functionDefinitionWithNoAdmin = .buildAnalyticWrapper( equationsWithNoAdmin, functionArgumentsWithNoAdmin, timeNamesNoAdmin, outputNoAdmin )
   )
   prop( model, "functionArgumentsModelAnalytic" ) = list(
     functionArgumentsWithAdmin   = functionArgumentsWithAdmin,
@@ -57,35 +63,21 @@ method( defineModelWrapper, ModelAnalyticSteadyState ) = function( model, evalua
 }
 
 
+#' Expand steady-state doses and relative sampling times for each administration.
+#' @return Updated model with solver input structures.
+#' @name defineModelAdministration
+#' @keywords internal
 method( defineModelAdministration, ModelAnalyticSteadyState ) = function( model, arm ) {
 
   administrations            = prop( arm,   "administrations" )
   outcomesWithAdministration = prop( model, "outcomesWithAdministration" )
-  samplingTimes              = prop( arm,   "samplingTimes" )
-  samplings                  = map( samplingTimes, ~ prop( .x, "samplings" ) ) |>
-    unlist() |> sort() |> unique()
+  samplings                  = .analyticSamplingGrid( arm )
 
   solverInputs = map( administrations, function( adm ) {
-    tau         = prop( adm, "tau" )
-    dosing      = .alignAdministrationDosing( adm )
-    timeDose    = dosing$timeDose
-    dose        = dosing$dose
-    maxSampling = max( samplings )
-
-    if ( tau != 0 ) {
-      timeDose = seq( 0, maxSampling, tau )
-      dose     = rep( dose, length( timeDose ) )
-    }
-
-    # Relative sampling times from each dose event: positive delay or full time.
-    timeDose = timeDose |>
-      map( ~ ifelse( samplings - .x > 0, samplings - .x, samplings ) ) |>
-      reduce( cbind )
-
-    indicesDoses = map_int( seq_len( nrow( timeDose ) ),
-                            ~ length( unique( timeDose[.x, ] ) ) )
-
-    list( data = data.frame( timeDose, indicesDoses ), dose = dose, tau = tau )
+    dosing = .alignAdministrationDosing( adm )
+    .analyticRelativeDoseTable(
+      samplings, dosing$timeDose, dosing$dose, prop( adm, "tau" )
+    )
   }) |> set_names( outcomesWithAdministration )
 
   prop( model, "samplings" ) = samplings
@@ -95,7 +87,15 @@ method( defineModelAdministration, ModelAnalyticSteadyState ) = function( model,
 }
 
 
-method( evaluateModel, ModelAnalyticSteadyState ) = function( model, arm ) {
+#' Evaluate analytic steady-state predictions (sum over contributing doses).
+#'
+#' Same superposition pattern as \code{evaluateAnalyticCore}, but each wrapper
+#' call also receives \code{tau} (dosing interval) required by the closed forms.
+#' @param model A \code{ModelAnalyticSteadyState} object.
+#' @param arm   An \code{Arm} object.
+#' @return Named list of output data frames at requested sampling times.
+#' @keywords internal
+evaluateAnalyticSteadyStateCore = function( model, arm ) {
 
   parameters                 = prop( model, "modelParameters" )
   outcomesWithAdministration = prop( model, "outcomesWithAdministration" )
@@ -103,77 +103,91 @@ method( evaluateModel, ModelAnalyticSteadyState ) = function( model, arm ) {
   samplings                  = prop( model, "samplings" )
   solverInputs               = prop( model, "solverInputs" )
 
-  wrapperModelAnalytic          = prop( model, "wrapperModelAnalytic" )
-  functionDefinitionWithAdmin   = wrapperModelAnalytic$functionDefinitionWithAdmin
-  functionDefinitionWithNoAdmin = wrapperModelAnalytic$functionDefinitionWithNoAdmin
+  wrappers = .analyticBindUserEnv(
+    prop( model, "wrapperModelAnalytic" )$functionDefinitionWithAdmin,
+    prop( model, "wrapperModelAnalytic" )$functionDefinitionWithNoAdmin
+  )
+  fnAdmin   = wrappers[[ 1L ]]
+  fnNoAdmin = wrappers[[ 2L ]]
+  mu        = .extractMu( parameters )
 
-  mu = .extractMu( parameters )
-
-  evaluationModelTmpList = map( seq_along( samplings ), function( iterTime ) {
-
-    # Initialise argument list with parameter values at each time step
-    currentArgsNoAdmin = as.list( mu )
-
-    outcomesResults = vector( "list", length( outcomesWithAdministration ) )
-    for ( i in seq_along( outcomesWithAdministration ) ) {
-      outcome = outcomesWithAdministration[[ i ]]
+  tmp = .analyticEvalGrid(
+    samplings, outcomesWithAdministration, as.list( mu ),
+    function( iterTime, outcome, args ) {
       data         = solverInputs[[ outcome ]]$data
       dose         = solverInputs[[ outcome ]]$dose
+      tau          = solverInputs[[ outcome ]]$tau
       indicesDoses = data$indicesDoses[ iterTime ]
-
-      timesVec = as.numeric( data[ iterTime, seq_len( indicesDoses ) ] )
-      dosesVec = as.numeric( dose[ seq_len( indicesDoses ) ] )
-
-      argsAdmin = c( currentArgsNoAdmin,
-                     set_names( list( timesVec, dosesVec ),
-                                c( paste0( "t_", outcome ), paste0( "dose_", outcome ) ) ) )
-      argsAdmin[[ "tau" ]] = solverInputs[[ outcome ]]$tau
-
-      evaluationOutcomeWithAdmin = sum( do.call( functionDefinitionWithAdmin, argsAdmin )[[ 1L ]] )
-      currentArgsNoAdmin[[ outcome ]] = evaluationOutcomeWithAdmin
-      currentArgsNoAdmin[[ "tau" ]]   = solverInputs[[ outcome ]]$tau
-
-      evaluationOutcomeWithNoAdmin = do.call( functionDefinitionWithNoAdmin, currentArgsNoAdmin )[[ 1L ]]
-
-      outcomesResults[[ i ]] = if ( is.null( evaluationOutcomeWithNoAdmin ) ||
-                                    length( evaluationOutcomeWithNoAdmin ) == 0L ) {
-        data.frame( Admin = evaluationOutcomeWithAdmin )
-      } else {
-        data.frame( Admin = evaluationOutcomeWithAdmin, NoAdmin = evaluationOutcomeWithNoAdmin )
-      }
+      argsAdmin    = c(
+        args,
+        set_names(
+          list(
+            as.numeric( data[ iterTime, seq_len( indicesDoses ) ] ),
+            as.numeric( dose[ seq_len( indicesDoses ) ] )
+          ),
+          c( paste0( "t_", outcome ), paste0( "dose_", outcome ) )
+        )
+      )
+      argsAdmin[[ "tau" ]] = tau
+      admin = sum( do.call( fnAdmin, argsAdmin )[[ 1L ]] )
+      args[[ outcome ]] = admin
+      args[[ "tau" ]]   = tau
+      argsNoAdmin = .pfimFillMissingTimeFormals( fnNoAdmin, args, samplings[[ iterTime ]] )
+      list( admin = admin, noAdmin = do.call( fnNoAdmin, argsNoAdmin )[[ 1L ]], args = args )
     }
-    data.frame( time = samplings[[iterTime]], do.call( cbind, outcomesResults ) )
-  })
-
-  evaluationModelTmp = list_rbind( evaluationModelTmpList )
-  colnames( evaluationModelTmp ) = c( "time", outputNames )
-
-  samplings_by_output = set_names( map( prop( arm, "samplingTimes" ), ~ prop( .x, "samplings" ) ), outputNames )
-  set_names(
-    map( outputNames, ~ evaluationModelTmp[ evaluationModelTmp$time %in% samplings_by_output[[.x]], c("time", .x) ] ),
-    outputNames
   )
+  .analyticFinishEvaluation( tmp, outputNames, arm )
 }
 
 
+#' Dispatch: covariate/occasion structure -> specialised path; else SS core evaluator.
+#' @return Named list of output data frames at requested sampling times.
+#' @name evaluateModel
+#' @keywords internal
+method( evaluateModel, ModelAnalyticSteadyState ) = function( model, arm ) {
+  .analyticDispatchEvaluate( model, arm, evaluateAnalyticSteadyStateCore )
+}
+
+
+#' Return PK equations stored on the steady-state analytic model.
+#' @param pkModel First argument of generic.
+#' @param pfimproject \code{PFIMProject} object (unused).
+#' @return List of PK equations from \code{pkModel}.
+#' @name definePKModel
+#' @keywords internal
 method( definePKModel, list( ModelAnalyticSteadyState, PFIMProject ) ) = function( pkModel, pfimproject ) {
   prop( pkModel, "modelEquations" )
 }
 
 
+#' Concatenate steady-state analytic PK with analytic PD equation lists.
+#' @param pkModel First argument of generic.
+#' @param pdModel Analytic PD model.
+#' @param pfimproject \code{PFIMProject} object (unused).
+#' @return Concatenated analytic PK/PD equation list.
+#' @name definePKPDModel
+#' @keywords internal
 method( definePKPDModel, list( ModelAnalyticSteadyState, ModelAnalytic, PFIMProject ) ) =
   function( pkModel, pdModel, pfimproject ) {
     c( prop( pkModel, "modelEquations" ), prop( pdModel, "modelEquations" ) )
   }
 
 
+#' Convert SS analytic PK to ODE, append ODE PD, and remap library compartments.
+#' @param pkModel First argument of generic.
+#' @param pdModel ODE PD model.
+#' @param pfimproject \code{PFIMProject} used for remapping.
+#' @return Named list of remapped ODE equations.
+#' @name definePKPDModel
+#' @keywords internal
 method( definePKPDModel, list( ModelAnalyticSteadyState, ModelODE, PFIMProject ) ) =
   function( pkModel, pdModel, pfimproject ) {
 
+    # Analytic PK -> ODE derivative, then join with PD and remap RespPK/E tokens.
     equations = c(
       convertPKModelAnalyticToPKModelODE( pkModel ),
       prop( pdModel, "modelEquations" )
     )
     eq = remapPkpdLibraryEquations( equations, pfimproject )
-    set_names( eq, .derivativeNamesFromCompartments( pfimproject, length( eq ) ) )
+    set_names( eq, .derivativeNamesFromCompartments( pfimproject, length( eq ), names( eq ) ) )
   }

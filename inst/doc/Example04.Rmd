@@ -1,0 +1,462 @@
+---
+title: "G-CSF PK-PD design evaluation — PopED Design 1 cross-check"
+classoption: openany
+output:
+  rmarkdown::html_vignette:
+    toc: true
+bibliography: references.bib
+biblio-style: apalike
+link-citations: yes
+linkcolor: blue
+urlcolor: green
+vignette: >
+  %\VignetteIndexEntry{G-CSF PK-PD design evaluation — PopED Design 1 cross-check}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<style type="text/css">
+
+body {
+  font-size: 11pt;
+  max-width: 1100px;
+  margin-left: 12px;
+  line-height: 1.45;
+}
+
+h1.title {
+  font-size: 32pt;
+}
+
+h1 { font-size: 18pt; margin-top: 1.4em; }
+h2 { font-size: 14pt; margin-top: 1.2em; }
+h3 { font-size: 12pt; margin-top: 1.0em; }
+
+code.r {
+  font-size: 10.5pt;
+}
+
+p > img {
+  max-width: 16cm;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.4em auto;
+}
+
+table {
+  margin: 0.9em auto 1.1em auto;
+  border-collapse: collapse;
+  font-size: 10.5pt;
+}
+
+table caption {
+  caption-side: bottom;
+  font-style: italic;
+  font-size: 10pt;
+  padding-top: 0.4em;
+  color: #333;
+}
+
+th, td {
+  padding: 5px 11px;
+  vertical-align: middle;
+}
+
+thead th {
+  background: #f3f4f6;
+  border-bottom: 1px solid #bbb;
+}
+
+tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.pfim-callout {
+  border-left: 4px solid #2c5aa0;
+  background: #f5f8fc;
+  padding: 0.7em 1em;
+  margin: 1em 0 1.2em 0;
+}
+
+.pfim-callout p { margin: 0.25em 0; }
+
+.pfim-show {
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-x: auto;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  padding: 0.6em 0.8em;
+}
+
+</style>
+
+```{r global_options, echo = FALSE, include = FALSE}
+knitr::opts_knit$set(tangle = FALSE)
+backup_options = options()
+library(PFIM)
+set.seed(42)
+options(width = 200)
+utils = system.file("vignette-scripts", "pfim-vignette-utils.R", package = "PFIM")
+if (!nzchar(utils)) stop("pfim-vignette-utils.R not found.", call. = FALSE)
+source(utils, local = knitr::knit_global())
+paths = pfimVignetteSetupPaths()
+plotOptions = list(unitTime = c("hour"), unitOutcomes = c("ng/mL", "10^3/uL"))
+.pfimVignetteHas = function( name ) {
+  exists( name, inherits = TRUE ) && {
+    val = get( name, inherits = TRUE )
+    !is.null( val ) && ( !is.character( val ) || any( nzchar( val ) ) )
+  }
+}
+knitr::opts_chunk$set(purl = FALSE, collapse = TRUE,
+                      comment = "#>", echo = FALSE, warning = FALSE, message = FALSE,
+                      cache = FALSE, tidy = FALSE,
+                      fig.align = "center", out.width = "72%", dpi = 110,
+                      fig.width = 5, fig.height = 4, dev = "png")
+```
+
+# Overview
+
+This example reproduces the **G-CSF / filgrastim** population design used in PopED workshops (K/PD example), based on the PK-PD model of Krzyzanski *et al.* [@Krzyzanski2010] (mrgsolve depot `gcsf` / DDMORE).
+
+The model describes subcutaneous filgrastim with quasi-steady-state target-mediated drug disposition (TMDD) and a myelopoiesis cascade for absolute neutrophil count (ANC). The population Fisher information matrix (FIM) is evaluated for **Design 1**: three parallel arms (1, 3 and 10 µg/kg), 10 subjects per arm, dense PK and ANC sampling on days 1 and 7.
+
+## Objectives
+
+1. **Evaluate** the population FIM of Design 1 in PFIM (ODE model, two responses, `Combined2` residual error).
+2. **Compare** PFIM relative standard errors (RSE %) to PopED `evaluate.fim()` / `get_rse()` on the same design.
+3. **Display** typical PK and ANC predictions with the same layout as PopED `plot_model_prediction` (dense ODE re-simulation, not interpolation of FIM sampling times).
+
+The published PopED table uses **central finite differences**. PFIM matches that stencil with `perf.fdLinearOnly = TRUE`. PFIM's default is a quadratic stencil; on a one-compartment library model the two stencils agree to about $10^{-4}$ on $\det(\mathrm{FIM})$ (`tests/testthat/test-gradient-perf.R`). Live agreement with the hardcoded PopED RSE is checked in `tests/testthat/test-gcsf-poped.R` on every `R CMD check` (tolerance $10^{-3}$; about 20 s).
+
+The 11-state ODE FIM is expensive. During rendering, `example04_execute.R` reuses `vignettes/data/vignette4_evaluation_populationFIM.RDS` when present; otherwise it runs the evaluation. Set `PFIM_GCSF_FORCE_RUN=true` to ignore the cache. HTML `Report()` is rebuilt only when regenerating the FIM or when `PFIM_VIGNETTE_REPORT=true`.
+
+# Experimental design
+
+Design 1 is a three-arm parallel study. Body weight is fixed at 75 kg so the administered amount is $\mathrm{DOSE}\times\mathrm{WT}$. Seven daily subcutaneous doses are given at times $0, 24, \ldots, 144$ h (equivalent to `ii = 24`, `addl = 6`). Bioavailability `FF` enters the depot initial condition (`ABS = FF * dose_ABS`).
+
++------------------+--------+---------------------------+------------------------------------------+
+| Arm              | $n$    | Dose                      | Sampling                                 |
++==================+========+===========================+==========================================+
+| `dose_1ugkg`     | 10     | 1 µg/kg × 75 kg           | PK and ANC dense on days 1 and 7         |
++------------------+--------+---------------------------+------------------------------------------+
+| `dose_3ugkg`     | 10     | 3 µg/kg × 75 kg           | same grid                                |
++------------------+--------+---------------------------+------------------------------------------+
+| `dose_10ugkg`    | 10     | 10 µg/kg × 75 kg          | same grid                                |
++------------------+--------+---------------------------+------------------------------------------+
+
+PK samples on day 1: 0.167–24 h (22 points), repeated on day 7, plus 172, 192 and 216 h. ANC adds daily troughs on days 2–6 and a 240 h point. Later PK peaks are lower than the day-1 peak because of TMDD feedback: higher ANC clears G-CSF faster.
+
+# PK-PD model
+
+Two observed responses:
+
+- **RespPK** — serum G-CSF (ng/mL), algebraic quasi-steady-state free concentration from the central amount `CENT`.
+- **RespPD** — circulating ANC ($10^3$/µL), ODE state `NB`.
+
+Eleven ODE states: depot `ABS`, central `CENT`, nine bone-marrow transit compartments `B1`–`B9`, and blood neutrophils `NB`. Prefix `Deriv_` identifies each right-hand side; the suffix must match the state name. Operators follow R (`**` for exponentiation).
+
+The full right-hand sides are built by `.pfimGcsfModelEquations()` in `example04_execute.R`. The evaluation only needs the equation list, the algebraic PK output, and baseline initial conditions `.pfimGcsfBaselineICs()`.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelEquations = .pfimGcsfModelEquations()
+outputs = list(RespPK = .pfimGcsfCp(), RespPD = "NB")
+```
+
+# Model parameters
+
+Typical values follow the PopED / DDMORE workshop database. Inter-individual variability ($\omega$) is set only for parameters that PopED estimates (`notfixed_d`). Fixed $\mu$ flags match `notfixed_bpop`.
+
++------------+----------------------------------------------+-----------+------------------+----------+
+| Parameter  | Description                                  | $\mu$     | $\omega$         | Fixed μ  |
++============+==============================================+===========+==================+==========+
+| *FF*       | Bioavailability                              | 0.626     | 0                | Yes      |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KA*       | Absorption rate (h⁻¹)                        | 0.642     | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KEL*      | Elimination rate of free G-CSF (h⁻¹)         | 0.148     | √0.312           | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *VD*       | Central volume (L)                           | 2.56      | √0.328           | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KD*       | Equilibrium dissociation constant (ng/mL)    | 1.27      | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KINT*     | Internalization rate (h⁻¹)                   | 0.101     | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KSI*      | Binding capacity (Rmax-related)              | 0.211     | √0.224           | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KMT*      | Neutrophil elimination from blood (h⁻¹)      | 0.0723    | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *KTT*      | Myeloid transit rate (h⁻¹)                   | 0.0102    | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *NB0*      | Baseline circulating ANC (10³/µL)            | 1.65      | √0.298           | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *SC1*      | G-CSF EC₅₀ for stimulation (ng/mL)           | 3.21      | √0.803           | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *SM1*      | Max. stimulation of production               | 34.3      | √0.0128          | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+| *SM2*      | Max. stimulation of maturation               | 32.3      | 0                | No       |
++------------+----------------------------------------------+-----------+------------------+----------+
+
+`FR`, `D2`, `KOFF`, `KBB1`, `SM3` and `BAS` are fixed at the PopED values and do not appear in the FIM.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelParameters = list(
+  ModelParameter(name = "KA",  distribution = LogNormal(mu = 0.642, omega = 0)),
+  ModelParameter(name = "KEL", distribution = LogNormal(mu = 0.148, omega = sqrt(0.312))),
+  ModelParameter(name = "VD",  distribution = LogNormal(mu = 2.56,  omega = sqrt(0.328))),
+  # ... remaining parameters as in example04_execute.R
+)
+```
+
+# Residual error model
+
+PopED stores residual **variances** (`sigma`). PFIM `Combined2` stores residual **standard deviations** (`sigmaInter`, `sigmaSlope`). The variance form is
+
+$$
+V = \sigma_{\mathrm{inter}}^2 + (\sigma_{\mathrm{slope}}\, f)^2,
+$$
+
+which matches PopED `y*(1 + e_prop) + e_add` when both $\sigma$ are SDs.
+
++-----------+------------------+---------------------------+------------------+
+| Response  | Term             | PopED variance            | PFIM SD          |
++===========+==================+===========================+==================+
+| RespPK    | proportional     | 0.253                     | √0.253           |
++-----------+------------------+---------------------------+------------------+
+| RespPK    | additive         | 0 (not estimated)         | 0, fixed         |
++-----------+------------------+---------------------------+------------------+
+| RespPD    | proportional     | 0.0227                    | √0.0227          |
++-----------+------------------+---------------------------+------------------+
+| RespPD    | additive         | 2.10                      | √2.10            |
++-----------+------------------+---------------------------+------------------+
+
+On the RSE scale, the delta method gives $\mathrm{RSE}(\sigma^2) \approx 2\,\mathrm{RSE}(\sigma_{\mathrm{SD}})$. Tables below compare $2\times$ PFIM SD-RSE to PopED `SIGMA` RSE.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelError = list(
+  Combined2(output = "RespPK", sigmaInter = 0, sigmaSlope = sqrt(2.53e-01),
+            sigmaInterFixed = TRUE),
+  Combined2(output = "RespPD", sigmaInter = sqrt(2.10e+00),
+            sigmaSlope = sqrt(2.27e-02))
+)
+```
+
+# Administration, sampling times, arms
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+WT = 75
+dose_times = seq(0, 6 * 24, by = 24)
+
+mk_arm = function(name, dose_ug_per_kg) {
+  Arm(
+    name = name, size = 10,
+    administrations = list(Administration(
+      outcome = "ABS", timeDose = dose_times,
+      dose = rep(dose_ug_per_kg * WT, length(dose_times))
+    )),
+    samplingTimes = list(samplingPK, samplingPD),
+    initialConditions = .pfimGcsfBaselineICs()
+  )
+}
+
+design1 = Design(
+  name = "gcsf_design1",
+  arms = list(
+    mk_arm("dose_1ugkg", 1),
+    mk_arm("dose_3ugkg", 3),
+    mk_arm("dose_10ugkg", 10)
+  )
+)
+```
+
+# Population FIM evaluation
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+pfim_set_option(perf.fdLinearOnly = TRUE)
+
+evaluationPop = Evaluation(
+  name = "gcsf_poped_design1",
+  modelEquations = modelEquations,
+  modelParameters = modelParameters,
+  modelError = modelError,
+  outputs = list(RespPK = .pfimGcsfCp(), RespPD = "NB"),
+  designs = list(design1),
+  fimType = "population",
+  odeSolverParameters = list(atol = 1e-8, rtol = 1e-8)
+)
+
+evaluationPop = run(evaluationPop)
+show(evaluationPop)
+getRSE(evaluationPop)
+```
+
+```{r ex04_run, include = FALSE}
+script = file.path("..", "inst", "vignette-scripts", "example04_execute.R")
+if (!file.exists(script))
+  script = system.file("vignette-scripts", "example04_execute.R", package = "PFIM")
+if (!nzchar(script) || !file.exists(script))
+  stop("example04_execute.R not found; reinstall PFIM or rebuild vignettes.")
+source(script, local = knitr::knit_global())
+```
+
+```{r ex04_show_pop, echo = FALSE, results = "asis"}
+if (.pfimVignetteHas("showOutputEvaluationPop")) {
+  cat("<pre class=\"pfim-show\">", showOutputEvaluationPop, "</pre>\n", sep = "")
+}
+```
+
+# RSE versus PopED reference
+
+PopED reference values are the workshop `get_rse(FIM_gcsf, poped_db_gcsf)` numbers for Design 1. The relative difference is the **absolute** gap as a percent of the PopED value,
+
+$$
+|\mathrm{rel.\ diff.}| = 100 \times \frac{|\mathrm{RSE}_{\mathrm{PFIM}} - \mathrm{RSE}_{\mathrm{PopED}}|}{\mathrm{RSE}_{\mathrm{PopED}}},
+$$
+
+so the column is never negative. The PFIM column is the **linear** FD stencil. Numerical noise is typically well below $0.01\,\%$.
+
+```{r ex04_cmp_summary, echo = FALSE, results = "asis"}
+max_mu = max(cmp_mu$rel_pct, na.rm = TRUE)
+max_d  = max(cmp_d$rel_pct, na.rm = TRUE)
+max_s  = max(cmp_sigma$rel_pct, na.rm = TRUE)
+cat(
+  "<div class=\"pfim-callout\">",
+  "<p><strong>Agreement (Design 1, linear FD).</strong> ",
+  sprintf(
+    "Maximum |relative difference| vs PopED: fixed effects %.3f%%; IIV (ω²) %.3f%%; residual error (2 × SD-RSE vs SIGMA) %.3f%%.",
+    max_mu, max_d, max_s
+  ),
+  "</p></div>\n",
+  sep = ""
+)
+```
+
+## Fixed effects ($\mu$)
+
+```{r ex04_cmp_mu, echo = FALSE, results = "asis"}
+mu_desc = c(
+  KA = "Absorption rate",
+  KEL = "Elimination rate of free G-CSF",
+  VD = "Central volume",
+  KD = "Equilibrium dissociation constant",
+  KINT = "Internalization rate",
+  KSI = "Binding capacity (Rmax-related)",
+  KMT = "Neutrophil elimination from blood",
+  KTT = "Myeloid transit rate",
+  NB0 = "Baseline circulating ANC",
+  SC1 = "G-CSF EC50 for stimulation",
+  SM1 = "Max. stimulation of production",
+  SM2 = "Max. stimulation of maturation"
+)
+mu_tab = data.frame(
+  Parameter = paste0("$\\mu_{\\mathrm{", cmp_mu$param, "}}$"),
+  Description = unname(mu_desc[ cmp_mu$param ]),
+  `PFIM RSE (%)` = .gcsfFmtRse(cmp_mu$pfim),
+  `PopED RSE (%)` = .gcsfFmtRse(cmp_mu$poped),
+  `|Rel. diff.| (%)` = .gcsfFmtRel(cmp_mu$rel_pct),
+  check.names = FALSE
+)
+if ("pfim_quad" %in% names(cmp_mu)) {
+  mu_tab[["PFIM RSE, quadratic FD (%)"]] = .gcsfFmtRse(cmp_mu$pfim_quad)
+  mu_tab[["|Rel. diff.| quad. (%)"]] = .gcsfFmtRel(cmp_mu$rel_pct_quad)
+}
+.gcsfKbl(
+  mu_tab,
+  "Fixed-effect RSE (%): PFIM (linear FD) vs PopED Design 1. |Rel. diff.| is the absolute gap as a percent of the PopED value."
+)
+```
+
+## Inter-individual variances ($\omega^2$)
+
+Only the six $\omega$ that PopED estimates are compared (`notfixed_d`).
+
+```{r ex04_cmp_d, echo = FALSE, results = "asis"}
+d_desc = c(
+  NB0 = "Baseline circulating ANC",
+  KEL = "Elimination rate of free G-CSF",
+  VD = "Central volume",
+  KSI = "Binding capacity (Rmax-related)",
+  SC1 = "G-CSF EC50 for stimulation",
+  SM1 = "Max. stimulation of production"
+)
+d_tab = data.frame(
+  Parameter = paste0("$\\omega^2_{\\mathrm{", cmp_d$param, "}}$"),
+  Description = unname(d_desc[ cmp_d$param ]),
+  `PFIM RSE (%)` = .gcsfFmtRse(cmp_d$pfim),
+  `PopED RSE (%)` = .gcsfFmtRse(cmp_d$poped),
+  `|Rel. diff.| (%)` = .gcsfFmtRel(cmp_d$rel_pct),
+  check.names = FALSE
+)
+if ("pfim_quad" %in% names(cmp_d)) {
+  d_tab[["PFIM RSE, quadratic FD (%)"]] = .gcsfFmtRse(cmp_d$pfim_quad)
+  d_tab[["|Rel. diff.| quad. (%)"]] = .gcsfFmtRel(cmp_d$rel_pct_quad)
+}
+.gcsfKbl(
+  d_tab,
+  "IIV variance ($\\omega^2$) RSE (%): PFIM vs PopED $D$ diagonals."
+)
+```
+
+## Residual error ($\sigma$)
+
+Console and report rows are labelled $\sigma_{\mathrm{slope/inter}}$ — the **Value** column is the SD, not the variance. The comparison column is $2\times$ PFIM SD-RSE versus PopED variance RSE.
+
+```{r ex04_cmp_sigma, echo = FALSE, results = "asis"}
+sig_desc = c(
+  slope_RespPK = "PK proportional (SD)",
+  slope_RespPD = "ANC proportional (SD)",
+  inter_RespPD = "ANC additive (SD)"
+)
+sig_tab = data.frame(
+  Parameter = c(
+    "$\\sigma_{\\mathrm{slope,PK}}$",
+    "$\\sigma_{\\mathrm{slope,ANC}}$",
+    "$\\sigma_{\\mathrm{inter,ANC}}$"
+  ),
+  Description = unname(sig_desc[ cmp_sigma$param ]),
+  `PFIM value (SD)` = .gcsfFmtRse(cmp_sigma$pfim_sd, 4),
+  `PopED value (var)` = signif(cmp_sigma$poped_var, 4),
+  `PFIM RSE of SD (%)` = .gcsfFmtRse(cmp_sigma$pfim_rse_sd),
+  `2 × PFIM RSE (%)` = .gcsfFmtRse(cmp_sigma$pfim_rse_var_equiv),
+  `PopED SIGMA RSE (%)` = .gcsfFmtRse(cmp_sigma$poped_rse_var),
+  `|Rel. diff.| (%)` = .gcsfFmtRel(cmp_sigma$rel_pct),
+  check.names = FALSE
+)
+if ("pfim_quad" %in% names(cmp_sigma)) {
+  sig_tab[["2 × PFIM RSE, quadratic FD (%)"]] = .gcsfFmtRse(cmp_sigma$pfim_quad)
+  sig_tab[["|Rel. diff.| quad. (%)"]] = .gcsfFmtRel(cmp_sigma$rel_pct_quad)
+}
+.gcsfKbl(
+  sig_tab,
+  "Residual error: PFIM SD RSE vs PopED variance SIGMA RSE. |Rel. diff.| compares $2\\times$ PFIM SD-RSE to PopED."
+)
+```
+
+# Diagnostic plots
+
+Overlay of the three dose groups (PK | ANC), same layout as PopED `plot_model_prediction`: **ODE re-simulation** on a dense $0..t_{\max}$ grid. Design 1 is dense on days 1 and 7 only; connecting FIM sampling times would hide the five intermediate daily doses. Sampling times are shown as points.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+plotOutcomesEvaluationPopedStyle
+PFIM::plotSE(evaluationPop)
+PFIM::plotRSE(evaluationPop)
+```
+
+```{r ex04_plot_poped_style, echo = FALSE, fig.width = 11, fig.height = 4.8, out.width = "95%"}
+if (.pfimVignetteHas("plotOutcomesEvaluationPopedStyle")) plotOutcomesEvaluationPopedStyle
+```
+
+```{r ex04_plot_se, echo = FALSE, fig.height = 3.8, out.width = "78%"}
+if (.pfimVignetteHas("plotEval_SE")) plotEval_SE
+```
+
+```{r ex04_plot_rse, echo = FALSE, fig.height = 3.8, out.width = "78%"}
+if (.pfimVignetteHas("plotEval_RSE")) plotEval_RSE
+```
+
+```{r cleanup, echo = FALSE, include = FALSE}
+options(backup_options)
+```
+
+# References

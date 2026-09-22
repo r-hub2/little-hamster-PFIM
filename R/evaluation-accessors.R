@@ -1,97 +1,88 @@
-#' Fisher matrix blocks for the optimal design
+# Evaluation accessors: always refresh dimnames / SE-RSE via setEvaluationFim()
+# so getSE/getRSE/... stay consistent after model rebuilds. Not a raw prop read.
+
+#' Post-process the evaluation FIM (labels, SE/RSE) before accessors / show.
+#' @noRd
+#' @keywords internal
+.fimForEvaluation = function( evaluation ) {
+  setEvaluationFim( prop( evaluation, "fim" ), evaluation )
+}
+
+#' Fisher matrix blocks from an evaluated design.
+#'
+#' Runs \code{setEvaluationFim()} so dimnames and SE/RSE match the current model
+#' metadata, then returns the matrix blocks used by report helpers, plus
+#' \code{singularFim}.
+#' @return List with \code{fisherMatrix}, \code{fixedEffects},
+#'   \code{varianceEffects}, and \code{singularFim}.
 #' @name getFisherMatrix
 #' @export
 
-method( getFisherMatrix, Evaluation ) = function( pfimproject )
-{
-  fim = prop( pfimproject, "fim" )
-  fim = setEvaluationFim( fim, pfimproject )
-  fisherMatrix = prop( fim, "fisherMatrix" )
-  fixedEffects = prop( fim, "fixedEffects" )
-  varianceEffects = prop( fim, "varianceEffects" )
-
-  return( list( fisherMatrix = fisherMatrix, fixedEffects = fixedEffects, varianceEffects = varianceEffects ) )
+method( getFisherMatrix, Evaluation ) = function( pfimproject ) {
+  fim = .fimForEvaluation( pfimproject )
+  list(
+    fisherMatrix    = prop( fim, "fisherMatrix" ),
+    fixedEffects    = prop( fim, "fixedEffects" ),
+    varianceEffects = prop( fim, "varianceEffects" ),
+    singularFim     = isTRUE( prop( fim, "singularFim" ) )
+  )
 }
 
-
-method( show, Evaluation ) = function( object )
-{
-  fim = setEvaluationFim( prop( object, "fim" ), object )
+#' Console summary of an evaluated design (FIM, SE, RSE, criteria).
+#' @param object First argument of generic.
+#' @return Invisibly returns the printed \code{Evaluation} object.
+#' @name show-methods
+#' @keywords internal
+method( show, Evaluation ) = function( object ) {
+  fim = .fimForEvaluation( object )
   prop( object, "fim" ) = fim
-  .showPopulationFimConsole( fim, object )
+  showFIM( fim )
+  invisible( object )
 }
 
-#' Response plots for all designs in an evaluation
-#' @name plotEvaluation
+#' Standard errors from the evaluated design FIM.
+#' @name getSE
 #' @export
-
-
-method( getSE, Evaluation ) = function( pfimproject )
-{
-  # set the FIM and plot SE
-  fim = prop( pfimproject, "fim" )
-  fim = setEvaluationFim( fim, pfimproject )
-  SEAndRSE = prop( fim, "SEAndRSE" )
-  SE = SEAndRSE$SE
-  return( SE )
+method( getSE, Evaluation ) = function( pfimproject ) {
+  prop( .fimForEvaluation( pfimproject ), "SEAndRSE" )$SE
 }
 
-#' Relative standard errors from the optimal design FIM
+#' Relative standard errors (\%) from the evaluated design FIM.
 #' @name getRSE
 #' @export
 
-method( getRSE, Evaluation ) = function( pfimproject )
-{
-  # set the FIM and plot SE
-  fim = prop( pfimproject, "fim" )
-  fim = setEvaluationFim( fim, pfimproject )
-  SEAndRSE = prop( fim, "SEAndRSE" )
-  RSE = SEAndRSE$RSE
-  return( RSE )
+method( getRSE, Evaluation ) = function( pfimproject ) {
+  prop( .fimForEvaluation( pfimproject ), "SEAndRSE" )$RSE
 }
 
-#' Parameter shrinkage from the Bayesian FIM
+#' Parameter shrinkage from a Bayesian evaluation FIM (empty for other types).
 #' @name getShrinkage
 #' @export
 
-method( getShrinkage, Evaluation ) = function( pfimproject )
-{
-  # set the FIM and plot SE
-  fim = prop( pfimproject, "fim" )
-  fim = setEvaluationFim( fim, pfimproject )
-  shrinkage = prop( fim, "shrinkage" )
-  return( shrinkage )
+method( getShrinkage, Evaluation ) = function( pfimproject ) {
+  prop( .fimForEvaluation( pfimproject ), "shrinkage" )
 }
 
-#' Determinant of the optimal design FIM
+#' Determinant of the evaluated design FIM.
 #' @name getDeterminant
 #' @export
 
-method( getDeterminant, Evaluation ) = function( pfimproject )
-{
-  fisherMatrix = getFisherMatrix( pfimproject )
-  return( det( fisherMatrix$fisherMatrix ) )
+method( getDeterminant, Evaluation ) = function( pfimproject ) {
+  .fimDeterminant( prop( .fimForEvaluation( pfimproject ), "fisherMatrix" ) )
 }
 
-#' D-criterion of the optimal design
+#' D-criterion of the evaluated design.
 #' @name getDcriterion
 #' @export
 
-method( getDcriterion, Evaluation ) = function( pfimproject )
-{
-  fim = prop( pfimproject, "fim" )
-  fim = setEvaluationFim( fim, pfimproject )
-  return( Dcriterion( fim ) )
+method( getDcriterion, Evaluation ) = function( pfimproject ) {
+  Dcriterion( .fimForEvaluation( pfimproject ) )
 }
 
-#' Parameter correlations from the optimal design FIM
+#' Parameter correlations from the evaluated design FIM.
 #' @name getCorrelationMatrix
 #' @export
 
-method( getCorrelationMatrix, Evaluation ) = function( pfimproject )
-{
-  fim       = setEvaluationFim( prop( pfimproject, "fim" ), pfimproject )
-  M         = prop( fim, "fisherMatrix" )
-  covMatrix = .safeCholInv( M )
-  cov2cor( covMatrix )
+method( getCorrelationMatrix, Evaluation ) = function( pfimproject ) {
+  .fimCorrelationMatrix( prop( .fimForEvaluation( pfimproject ), "fisherMatrix" ) )
 }

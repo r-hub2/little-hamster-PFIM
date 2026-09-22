@@ -8,7 +8,7 @@
 \alias{package-PFIM}
 \title{Population Fisher information for design evaluation and optimization in NLME models.}
 \description{
-Evaluate or optimize designs for nonlinear mixed effects models using the Fisher Information matrix. Methods used in the package refer to Mentré F, Mallet A, Baccar D (1997) \doi{10.1093/biomet/84.2.429}, Retout S, Comets E, Samson A, Mentré F (2007) \doi{10.1002/sim.2910}, Bazzoli C, Retout S, Mentré F (2009) \doi{10.1002/sim.3573}, Le Nagard H, Chao L, Tenaillon O (2011) \doi{10.1186/1471-2148-11-326}, Combes FP, Retout S, Frey N, Mentré F (2013) \doi{10.1007/s11095-013-1079-3} and Seurat J, Tang Y, Mentré F, Nguyen TT (2021) \doi{10.1016/j.cmpb.2021.106126}.
+Evaluate or optimize designs for nonlinear mixed effects models using the Fisher Information matrix. Supports population, individual, and Bayesian 'FIMs', covariates, inter-occasion variability, and D-optimal search ('Fedorov-Wynn', multiplicative, simplex, 'PSO', 'PGBO').
 }
 \section{Description}{
 
@@ -18,15 +18,30 @@ trial simulation for optimizing study designs. **PFIM 7.1** is an R package usin
 **S7** object system to evaluate and optimize population designs from the FIM.
 
 PFIM includes libraries of PK and PD models (S7 classes): bolus, infusion,
-first-order absorption, one- to three-compartment structures, linear or
+first-order absorption, one- and two-compartment structures, linear or
 Michaelis-Menten elimination, direct and turnover PD models, and combined
-PK/PD models. Users may also supply custom analytical or ODE models.
-The FIM is computed by first-order linearization with a block-diagonal structure
-(Mentré et al., 1997). A Bayesian FIM provides shrinkage-related predictions
-(Combes et al., 2013). Design optimization under the D-criterion uses:
-the simplex algorithm (Nelder-Mead) (Nelder & Mead, 1965), the
-multiplicative algorithm (Seurat et al., 2021), the Fedorov-Wynn algorithm (Fedorov, 1972), PSO (*Particle Swarm Optimization*) and PGBO (*Population Genetics Based
-Optimizer*) (Le Nagard et al., 2011).
+PK/PD models. Users may also supply custom analytical or ODE models; set
+\code{modelClass} explicitly or use \code{\link{pfim_resolve_model_class}}.
+The FIM is computed by first-order linearization with a block-diagonal
+structure. A Bayesian FIM provides shrinkage-related predictions.
+Design optimization under the D-criterion uses the simplex algorithm
+(Nelder-Mead), the multiplicative algorithm, Fedorov-Wynn, PSO
+(Particle Swarm Optimization) and PGBO (Population Genetics Based Optimizer).
+}
+
+\section{User API}{
+
+Constructors: \code{\link{Evaluation}}, \code{\link{Optimization}},
+\code{\link{Arm}}, \code{\link{Design}}, \code{\link{ModelParameter}},
+residual-error and distribution classes, FIM types, and algorithm classes.
+Verbs: \code{\link{run}}, \code{\link{Report}}, \code{\link{defineFim}},
+\code{\link{definePKModel}}, \code{\link{definePKPDModel}},
+\code{getSE}/\code{getRSE}/\code{getFisherMatrix}/\code{getDcriterion}/\code{getShrinkage},
+\code{plotEvaluation}/\code{plotSE}/\code{plotRSE}/\code{plotSensitivityIndices}/\code{plotWeights}/\code{plotFrequencies},
+\code{\link{showFIM}}, \code{\link{covariateTest}}.
+Session: \code{\link{pfim_set_option}}, \code{\link{pfim_reset_session}}.
+Pipeline helpers (\code{evaluateDesign}, \code{optimizeDesign}, \ldots) are
+internal; they remain callable from tests via the package namespace.
 }
 
 \section{Documentation}{
@@ -37,20 +52,8 @@ Package source, issues, and vignettes are available at
 
 \section{Session options}{
 
-Runtime toggles live in an internal session environment. Use
-\code{pfim_set_option(fim.cache = FALSE)} and \code{pfim_get_option("fim.cache")}.
-\describe{
-  \item{\code{fim.cache}}{Reuse evaluated designs during optimization (default \code{TRUE}).}
-  \item{\code{fim.cache.hits}}{Cache hit counter (reset at each constraint enumeration).}
-  \item{\code{fim.cache.scope}}{Active cache namespace (set when optimization starts).}
-  \item{\code{constraints.maxTasks}}{Cap dose x sampling cells on the constraint grid.}
-  \item{\code{verbose}}{Progress messages during long FIM enumerations.}
-  \item{\code{eval.batch}}{Batch evaluation mode during constraint-grid enumeration.}
-  \item{\code{perf.adminCache}, \code{perf.fdCache}, \code{perf.odeTimesCache}}{Gradient
-    performance caches for ODE models (default \code{TRUE}).}
-  \item{\code{model.cache.signature}}{Content-based key for \code{rebuildEvalModel}.}
-  \item{\code{devPath}}{Package root when loading from source (\code{.onLoad}).}
-}
+\code{\link{pfim_set_option}} / \code{\link{pfim_get_option}}; \code{\link{pfim_reset_session}} clears caches.
+See \code{?pfim_set_option} for \code{fim.cache}, \code{constraints.maxTasks}, and performance options.
 }
 
 \section{Validation}{
@@ -61,18 +64,14 @@ for population FIM; the number of occasions is inferred automatically on the mod
 }
 
 \references{
-Dumont C, Lestini G, Le Nagard H, Mentré F, Comets E, Nguyen TT, et al. PFIM 4.0, an extended R program for design evaluation and optimization in
+Dumont C, Lestini G, Le Nagard H, Comets E, Nguyen TT, et al. PFIM 4.0, an extended R program for design evaluation and optimization in
 nonlinear mixed-effect models. Comput Methods Programs Biomed. 2018;156:217-29.
 
 Chambers JM. Object-Oriented Programming, Functional Programming and R. Stat Sci. 2014;29:167-80.
 
-Mentré F, Mallet A, Baccar D. Optimal Design in Random-Effects Regression Models. Biometrika. 1997;84:429-42.
-
-Combes FP, Retout S, Frey N, Mentré F. Prediction of shrinkage of individual parameters using the Bayesian information matrix in nonlinear mixed effect models with evaluation in pharmacokinetics. Pharm Res. 2013;30:2355-67.
-
 Nelder JA, Mead R. A simplex method for function minimization. Comput J. 1965;7:308-13.
 
-Seurat J, Tang Y, Mentré F, Nguyen, TT. Finding optimal design in nonlinear mixed effect models using multiplicative algorithms. Computer Methods and Programs in Biomedicine, 2021.
+Seurat J, Tang Y, Nguyen TT. Finding optimal design in nonlinear mixed effect models using multiplicative algorithms. Computer Methods and Programs in Biomedicine, 2021.
 
 Fedorov VV. Theory of Optimal Experiments. Academic Press, New York, 1972.
 
@@ -85,18 +84,20 @@ Wickham H. ggplot2: Elegant Graphics for Data Analysis, Springer-Verlag New York
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/packagePFIM}
+  \item \url{https://github.com/packagePFIM/PFIM}
   \item Report bugs at \url{https://github.com/packagePFIM/PFIM/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Romain Leroux \email{romainlerouxPFIM@gmail.com} (\href{https://orcid.org/0009-0009-5779-5303}{ORCID})
+\strong{Maintainer}: France Mentré \email{PFIM@inserm.fr}
+(\href{https://orcid.org/0000-0002-7045-1275}{ORCID}).
 
-Other contributors:
-\itemize{
-  \item France Mentré \email{france.mentre@inserm.fr} (\href{https://orcid.org/0000-0002-7045-1275}{ORCID}) [contributor]
-  \item Jérémy Seurat \email{jeremy.seurat@inserm.fr} [contributor]
-}
+\strong{Author, creator of PFIM 7.1}: Romain Leroux \email{romain.leroux@inserm.fr}
+(\href{https://orcid.org/0009-0009-5779-5303}{ORCID}) (PFIM, 2020--2026).
 
+\strong{Other contributors}:
+\strong{Contributor} Jérémy Seurat \email{jeremy.seurat@prive.fr},
+\strong{Contributor} Antoine Croxo \email{antoine.croxo@inserm.fr},
+\strong{Contributor} Lucie Fayette \email{lucie.fayette@inserm.fr}.
 }

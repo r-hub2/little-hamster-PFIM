@@ -2,70 +2,82 @@ Package: PFIM
 Type: Package
 Title: Population Fisher Information Matrix
 Version: 7.1
-Date: 2026-06-11
+Date: 2026-09-17
 Authors@R: c(
     person(given = "Romain",
            family = "Leroux",
-           role = c("aut","cre"),
+           role = c("aut", "cre"),
            comment = c(ORCID = "0009-0009-5779-5303"),
            email = "romainlerouxPFIM@gmail.com"),
     person(given = "France",
            family = "Mentr\u00E9",
-           role = c("ctb"),
+           role = "aut",
            comment = c(ORCID = "0000-0002-7045-1275"),
            email = "france.mentre@inserm.fr"),
-    person(given = "J\u00E9r\u00E9my",
-           family = "Seurat",
-           role = c("ctb"),
-           email = "jeremy.seurat@inserm.fr"))    
+    person(given = "Lucie",
+           family = "Fayette",
+           role = "ctb",
+           email = "lucie.fayette@inserm.fr"),
+    person(given = "Antoine",
+           family = "Croxo",
+           role = "ctb",
+           email = "antoine.croxo@inserm.fr"))
 Maintainer: Romain Leroux <romainlerouxPFIM@gmail.com>
-Copyright: 2020-2026 Inserm, Romain Leroux
 NeedsCompilation: yes
-Description: Evaluate or optimize designs for nonlinear mixed effects models using the Fisher Information matrix. Methods used in the package refer to
-    Mentré F, Mallet A, Baccar D (1997) <doi:10.1093/biomet/84.2.429>,
-    Retout S, Comets E, Samson A, Mentré F (2007) <doi:10.1002/sim.2910>,
-    Bazzoli C, Retout S, Mentré F (2009) <doi:10.1002/sim.3573>,
-    Le Nagard H, Chao L, Tenaillon O (2011) <doi:10.1186/1471-2148-11-326>,
-    Combes FP, Retout S, Frey N, Mentré F (2013) <doi:10.1007/s11095-013-1079-3> and
-    Seurat J, Tang Y, Mentré F, Nguyen TT (2021) <doi:10.1016/j.cmpb.2021.106126>.
-URL: https://github.com/packagePFIM
+Description: Evaluate or optimize designs for nonlinear mixed effects models
+    using the Fisher Information matrix. Supports population, individual, and
+    Bayesian 'FIMs', covariates, inter-occasion variability, and D-optimal search
+    ('Fedorov-Wynn', multiplicative, simplex, 'PSO', 'PGBO').
+URL: https://github.com/packagePFIM/PFIM
 BugReports: https://github.com/packagePFIM/PFIM/issues
-Depends: R (>= 4.4.0)
+Depends: R (>= 4.5.0)
+SystemRequirements: C++17
 License: GPL-3
 Encoding: UTF-8
 VignetteBuilder: knitr
-Imports: utils, Deriv, methods, deSolve, purrr, stringr, S7, Matrix,
-        ggplot2, Rcpp, kableExtra, tibble, scales, rmarkdown, rlang
-Suggests: testthat, knitr, pkgload, covr, withr
+Config/build/clean-inst-doc: FALSE
+Imports: utils, Deriv, methods, deSolve, purrr, stringr, S7 (>= 0.1.1),
+        Matrix, ggplot2 (>= 3.5.0), Rcpp, kableExtra, tibble, scales,
+        stats, rmarkdown, rlang, knitr, tools, grDevices
+Suggests: testthat (>= 3.2.3), withr
 LinkingTo: Rcpp, RcppArmadillo
 Config/testthat/edition: 3
-RoxygenNote: 7.3.3
 Collate: 'CovariateModelEquation.R' 'Additive.R' 'Administration.R'
-        'AdministrationConstraints.R' 'CovariateSamplingMethods.R'
-        'pfim-project-access.R' 'model-type-dispatch.R' 'Fim.R'
-        'PFIMProject.R' 'Optimization.R' 'PGBOAlgorithm.R'
-        'PSOAlgorithm.R' 'SimplexAlgorithm.R' 'FedorovWynnAlgorithm.R'
-        'MultiplicativeAlgorithm.R' 'Model.R' 'Arm.R' 'BayesianFim.R'
-        'Covariate.R' 'CategoricalCovariate.R'
-        'CategoricalCovariateWithIOV.R' 'ModelError.R' 'Combined1.R'
-        'Constant.R' 'Evaluation.R' 'CovariateTest.R' 'Design.R'
-        'Distribution.R' 'Exponential.R' 'IndividualFim.R'
-        'LibraryOfModels.R' 'LibraryOfPDModels.R' 'LibraryOfPKModels.R'
-        'LogNormal.R' 'ModelODE.R' 'ModelAnalytic.R' 'ModelInfusion.R'
-        'ModelAnalyticInfusion.R' 'ModelAnalyticInfusionSteadyState.R'
+        'AdministrationConstraints.R' 'Fim.R' 'Model.R' 'Arm.R'
+        'model-type-dispatch.R' 'pfim-project-access.R' 'PFIMProject.R'
+        'pfim-fim-report-render.R' 'BayesianFim.R' 'Covariate.R'
+        'CategoricalCovariate.R' 'CategoricalCovariateWithIOV.R'
+        'ModelError.R' 'Combined1.R' 'Combined2.R' 'Constant.R'
+        'Evaluation.R' 'CovariateTest.R' 'Design.R' 'Distribution.R'
+        'Exponential.R' 'Optimization.R' 'FedorovWynnAlgorithm.R'
+        'IndividualFim.R' 'LibraryOfModels.R' 'LibraryOfPDModels.R'
+        'LibraryOfPKModels.R' 'LogNormal.R' 'ModelODE.R'
+        'ModelAnalytic.R' 'ModelInfusion.R' 'ModelAnalyticInfusion.R'
+        'ModelAnalyticInfusionSteadyState.R'
         'ModelAnalyticSteadyState.R' 'ModelODEInfusion.R'
         'ModelODEInfusionDoseInEquation.R' 'ModelParameter.R'
-        'Normal.R' 'PFIM-package.R' 'PopulationFim.R' 'Proportional.R'
-        'RcppExports.R' 'SamplingTimeConstraints.R' 'SamplingTimes.R'
-        'covariates-fim.R' 'evaluation-accessors.R'
-        'evaluation-plots.R' 'evaluation-report-kable.R'
-        'evaluation-report.R' 'model-covariates.R' 'model-gradient.R'
+        'MultiplicativeAlgorithm.R' 'Normal.R' 'PFIM-package.R'
+        'PGBOAlgorithm.R' 'PSOAlgorithm.R' 'PopulationFim.R'
+        'Proportional.R' 'RcppExports.R' 'SamplingTimeConstraints.R'
+        'SamplingTimes.R' 'SimplexAlgorithm.R' 'covariates-fim.R'
+        'evaluation-accessors.R' 'evaluation-plots.R'
+        'evaluation-report-kable.R' 'evaluation-report.R'
+        'model-analytic-eval.R' 'model-covariates.R'
+        'model-error-variance.R' 'model-gradient.R'
         'model-library-remap.R' 'model-ode-bolus.R' 'model-variance.R'
-        'pfim-constraints-helpers.R' 'pfim-fim-cache.R'
-        'pfim-gradient-perf.R' 'pfim-linear-algebra.R' 'pfim-session.R'
-        'pfim-utils.R' 'population-fim-variance.R' 's7-reexports.R'
-        'zzz.R'
-Author: Romain Leroux [aut, cre] (<https://orcid.org/0009-0009-5779-5303>),
-  France Mentré [ctb] (<https://orcid.org/0000-0002-7045-1275>),
-  Jérémy Seurat [ctb]
-Packaged: 2026-06-11 16:27:33 UTC; a.romain.leroux
+        'pfim-utils.R' 'pfim-arm-constraints.R'
+        'pfim-constraints-helpers.R' 'pfim-continuous-opt.R'
+        'pfim-errors.R' 'pfim-model-registry.R' 'pfim-registry.R'
+        'pfim-extensions.R' 'pfim-fim-cache.R' 'pfim-fim-labels.R'
+        'pfim-fim-optimal-arms.R' 'pfim-fim-optimizer-wiring.R'
+        'pfim-gradient-perf.R' 'pfim-linear-algebra.R'
+        'pfim-multi-design-opt.R' 'pfim-plot-perf.R'
+        'pfim-rd-examples.R' 'pfim-session.R' 'pfim-subject-fim.R'
+        'population-fim-variance.R' 's7-reexports.R' 'zzz.R'
+Config/roxygen2/version: 8.1.0
+Packaged: 2026-09-22 13:59:08 UTC; a.romain.leroux
+Author: Romain Leroux [aut, cre] (ORCID:
+    <https://orcid.org/0009-0009-5779-5303>),
+  France Mentré [aut] (ORCID: <https://orcid.org/0000-0002-7045-1275>),
+  Lucie Fayette [ctb],
+  Antoine Croxo [ctb]

@@ -59,7 +59,7 @@ test_that("Model PK 2cpts : Linear2BolusSingleDose_ClQV1V2", {
 
   FisherMatrix = getFisherMatrix(evaluationFIM )
   detPopulationFim =det(  FisherMatrix$fisherMatrix )
-  valueDetPopulationFim =  45852890814.07175445557
+  valueDetPopulationFim =  3587145686924841472
   tol = 1e-6
   expect_equal(detPopulationFim,valueDetPopulationFim, tolerance = tol )
 
@@ -133,7 +133,7 @@ test_that("Model PK 2cpts : Linear2BolusSingleDose_kk12k21V", {
   detPopulationFim =det(  FisherMatrix$fisherMatrix )
   detPopulationFim
 
-  valueDetPopulationFim =  1733176644421398016.0
+  valueDetPopulationFim =  2137812605034096941482868
 
   tol = 1e-6
 

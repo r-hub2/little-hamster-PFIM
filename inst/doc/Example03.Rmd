@@ -1,0 +1,537 @@
+---
+title: "Design evaluation and optimization with covariates — analytical PK model"
+classoption: openany
+output:
+  rmarkdown::html_vignette:
+    toc: true
+linkcolor: blue
+urlcolor: green
+vignette: >
+  %\VignetteIndexEntry{Design evaluation and optimization with covariates — analytical PK model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+  <style type="text/css">
+  
+  body{
+  font-size: 11pt;
+  }
+  
+  h1.title {
+  font-size: 40pt;
+  }
+  
+  code.r{
+  font-size: 11pt;
+  }
+  
+  body {
+  max-width: 1600px;  
+  margin-left:10px;
+  line-height: 20px;
+  }
+
+  table th:first-child,
+  table td:first-child {
+  text-align: center;
+  vertical-align: top;
+  }
+
+  table th:nth-child(2),
+  table td:nth-child(2) {
+  text-align: left;
+  }
+
+  p > img {
+  max-width: 13cm;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.35em auto;
+  }
+
+  </style>
+
+```{r global_options, echo = FALSE, include = FALSE}
+knitr::opts_knit$set(tangle = FALSE)
+backup_options = options()
+library(PFIM)
+set.seed(42)
+options(width = 200)
+utils = system.file("vignette-scripts", "pfim-vignette-utils.R", package = "PFIM")
+if (!nzchar(utils)) stop("pfim-vignette-utils.R not found.", call. = FALSE)
+source(utils, local = knitr::knit_global())
+paths = pfimVignetteSetupPaths()
+plotOptions = list(unitTime = c("hour"), unitOutcomes = c("mcg/mL"))
+.pfimVignetteHas = function( name ) {
+  exists( name, inherits = TRUE ) && {
+    val = get( name, inherits = TRUE )
+    !is.null( val ) && ( !is.character( val ) || any( nzchar( val ) ) )
+  }
+}
+knitr::opts_chunk$set(purl = FALSE, collapse = TRUE,
+                      comment = "#>", echo = FALSE, warning = FALSE, message = FALSE,
+                      cache = FALSE, tidy = FALSE,
+                      fig.align = "center", out.width = "62%", dpi = 110,
+                      fig.width = 5, fig.height = 4, dev = "png")
+```
+
+# Overview
+
+This example illustrates the evaluation of a population design for a one-compartment PK model with first-order absorption, defined analytically. Two covariates are considered:
+
+-   **Sex** (categorical, between-subject): a fixed covariate with two categories (M/F, 50/50), whose effect acts on the volume of distribution V.
+-   **Treatment** (categorical, within-subject): an occasion covariate defined by sequences following an two-period crossover design, whose effect acts on the clearance Cl.
+
+## Experimental design
+
+The design consists of a single arm of 40 subjects, each receiving a single oral dose of 30 mg at time 0, sampled at 5 time points. The population FIM is evaluated, and a covariate test is run to assess the power to detect the covariate effects (significance, non-relevance, and equivalence tests). 
+
+## Objectives
+
+The objective is to evaluate this design and how it assesses significance and non-relevance on the covariates, with the power for initial sample size and the number of subjects required to reach 90\% power. Secondly, we aim to find the D-optimal design with only 3 sampling times, using possible sampling time windows and a continuous design space optimization. The number of subjects and the dosing regimen is unchanged. At the end, we aim to compare if this sparser optimal design leads to equivalent performances on covariate tests than the initial design.
+
+Optimization results are computed by `example03_execute.R` (run once, then cached as `.RDS` in `data/`). HTML reports are written to `results/`. Reports are also available at <https://github.com/packagePFIM>
+
+# Design evaluation
+
+## PK model user-defined
+
+The equation corresponds to a one-compartment model with first-order absorption, with parameters ka, V and Cl. The dose is passed via the `dose_RespPK` keyword.
+
+### Define the PK model equation
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelEquations = list(
+  "RespPK" = "dose_RespPK/V * ka/(ka - Cl/V) * (exp(-Cl/V * t) - exp(-ka * t))"
+)
+```
+
+
+## Model parameters
+
+The model has three structural parameters, all log-normally distributed. Inter-individual variability ($\omega$) and inter-occasion variability ($\gamma$) are specified for each.
+
++-----------+--------------------------------+-----+--------------+----------------+---------+---------+
+| Parameter | Description                    | μ   | ω            | γ              | Fixed μ | Fixed ω |
++===========+================================+=====+==============+================+=========+=========+
+| *ka*      | Absorption rate constant (h⁻¹) | 1   | √0.09 ≈ 0.30 | √0.0225 = 0.15 | No      | No      |
++-----------+--------------------------------+-----+--------------+----------------+---------+---------+
+| *V*       | Volume of distribution (L)     | 3.5 | √0.09 ≈ 0.30 | √0.0225 = 0.15 | No      | No      |
++-----------+--------------------------------+-----+--------------+----------------+---------+---------+
+| *Cl*      | Elimination clearance (L/h)    | 2   | √0.09 ≈ 0.30 | √0.0225 = 0.15 | No      | No      |
++-----------+--------------------------------+-----+--------------+----------------+---------+---------+
+
+### Define mu, omega and gamma for each parameter
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelParameters = list(
+  ModelParameter( name = "ka", distribution = LogNormal( mu = 1,   omega = sqrt(0.09) ), gamma = sqrt(0.0225) ),
+  ModelParameter( name = "V",  distribution = LogNormal( mu = 3.5, omega = sqrt(0.09) ), gamma = sqrt(0.0225) ),
+  ModelParameter( name = "Cl", distribution = LogNormal( mu = 2,   omega = sqrt(0.09) ), gamma = sqrt(0.0225) )
+)
+```
+
+## Residual error model
+
+A constant (additive) residual error model is used, with `sigmaInter = 0.1` (variance = 0.01).
+
+### Define the error model to the response PK `RespPK`
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+modelError = list( Constant( output = "RespPK", sigmaInter = 0.1 ) )
+```
+
+
+## Covariates
+
+Covariate effects are parameterised on the log scale (`modelCovariatesEquation = "exponential"`), so each $\beta$ coefficient represents the log-ratio of the affected parameter between the non-reference and the reference category.
+
++-----------+---------------------------+------------+-------------+--------------------+------------------+-----------+
+| Covariate | Type                      | Categories | Proportions | Affected parameter | Effect (β)       | Reference |
++===========+===========================+============+=============+====================+==================+===========+
+| Sex       | Between-subject (fixed)   | M / F      | 50 % / 50 % | *V*                | log(1.2) ≈ 0.182 | M         |
++-----------+---------------------------+------------+-------------+--------------------+------------------+-----------+
+| Treatment | Within-subject (occasion) | R / T      | 50 % / 50 % | *Cl*               | log(1.1) ≈ 0.095 | R         |
++-----------+---------------------------+------------+-------------+--------------------+------------------+-----------+
+
+**Sex** is a between-subject covariate with an exponential effect on `V`. The log-ratio between female and male typical values is `log(1.2)`.
+
+### Define the between-subject covariate
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+sex = Covariate(
+  name = "Sex",
+  categories = c("M", "F"),
+  categoriesProportions = c(0.5, 0.5),
+  effects = list( "F" = c( "V" = log(1.2) ) )
+)
+```
+
+**Treatment** is a within-subject (occasion) covariate following a two-sequence, two-period crossover design. The log-ratio of clearance under treatment T relative to treatment R is `log(1.1)`.
+
+### Define the within-subject covariate
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+treatment = Covariate(
+  name = "Treatment",
+  categories = c("R", "T"),
+  sequences            = list( c("R","T"), c("T","R") ),
+  sequencesProportions = c(0.5, 0.5),
+  effects = list( "T" = c( "Cl" = log(1.1) ) )
+)
+```
+
+## Administration and sampling times
+
+A single oral dose of 30 mg is administered at time 0. Five sampling times are specified to cover both the absorption and elimination phases.
+
+### Define the administration parameters and the sampling times of the response PK
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+administrationRespPK = Administration( outcome = "RespPK", timeDose = c(0), dose = c(30) )
+
+samplingTimesRespPK = SamplingTimes( outcome = "RespPK", samplings = c(0.5, 2, 4, 6, 8) )
+```
+
+## Arm and design
+
+A single arm of 40 subjects on the same regimen.
+
+### Define an arm called `arm1` of size 40 encompassed in the design `design1`
+```{r, echo = TRUE, eval = FALSE, comment=''}
+arm1 = Arm( name = "arm1",
+            size = 40,
+            administrations = list( administrationRespPK ),
+            samplingTimes   = list( samplingTimesRespPK ) )
+
+design1 = Design( name = "design1", arms = list( arm1 ) )
+```
+
+```{r ex03_run, include = FALSE}
+script = system.file("vignette-scripts", "example03_execute.R", package = "PFIM")
+if (!nzchar(script) || !file.exists(script))
+  stop("example03_execute.R not found; reinstall PFIM or rebuild vignettes.")
+source(script, local = knitr::knit_global())
+```
+
+## Population FIM evaluation
+
+The covariate effects use an exponential parameterisation (`modelCovariatesEquation = "exponential"`). The analytic model does not require ODE solver parameters.
+
+### Evaluate the population FIM
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+evaluationPop = Evaluation(
+  name            = "",
+  modelParameters = modelParameters,
+  modelCovariates = list( sex, treatment ),
+  modelCovariatesEquation = "exponential",
+  modelEquations  = modelEquations,
+  modelError      = modelError,
+  designs         = list( design1 ),
+  fimType         = "population",
+  outputs         = list( "RespPK" = "RespPK" )
+)
+
+evaluationPopFIM = run( evaluationPop )
+```
+
+### Display the population FIM
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+show( evaluationPopFIM )
+```
+
+```{r ex03_show_pop, echo = FALSE, results = "asis"}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputEvaluation, "</pre>\n", sep = "")
+```
+
+```{r, echo = TRUE, eval = FALSE, fig.width = 8, fig.height = 5, out.width = "78%"}
+plotsEval = plotEvaluation( evaluationPopFIM, plotOptions )
+print( plotsEval[["design1"]][["arm1"]][["RespPK"]] )
+```
+
+```{r, echo = TRUE, eval = FALSE, fig.width = 8, fig.height = 5, out.width = "78%"}
+plotsSI = plotSensitivityIndices( evaluationPopFIM, plotOptions )
+print( plotsSI[["design1"]][["arm1"]][["RespPK"]][["V"]] )
+```
+
+```{r, echo = TRUE, eval = FALSE, fig.width = 8, fig.height = 5, out.width = "78%"}
+print( plotsSI[["design1"]][["arm1"]][["RespPK"]][["Cl"]] )
+```
+
+```{r, echo = TRUE, eval = FALSE, fig.height = 3.6}
+plotEval_SE = PFIM::plotSE( evaluationPopFIM )
+```
+
+```{r ex03_plot_sedisp, echo = FALSE, fig.height = 3.6}
+plotEval_SE
+```
+
+```{r, echo = TRUE, eval = FALSE, fig.height = 3.6}
+plotEval_RSE = PFIM::plotRSE( evaluationPopFIM )
+```
+
+```{r ex03_plot_rsedisp, echo = FALSE, fig.height = 3.6}
+plotEval_RSE
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+outputFile = "vignette3_evaluation_popFim_report.html"
+Report(evaluationPopFIM, paths$reports, outputFile, plotOptions)
+``` 
+
+Of note, we could also use these functions to extract specific results:
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+getFisherMatrix( evaluationPopFIM ) 
+getCorrelationMatrix( evaluationPopFIM ) 
+getSE( evaluationPopFIM ) 
+getRSE( evaluationPopFIM ) 
+getDeterminant( evaluationPopFIM ) 
+getDcriterion( evaluationPopFIM ) 
+```
+
+# Covariate tests
+
+The `covariateTest` function computes power for three hypothesis testing frameworks:
+
+-   **Significance test** — H₀: $\beta = 0$ vs H₁: $\beta \neq 0$
+-   **Non-relevance test (TOST)** — H₀: $|\beta| \geq \Delta$ vs H₁: $|\beta| < \Delta$ (effect is negligible)
+-   **Equivalence test** — two-sided TOST assessing whether the effect lies within $[-\Delta, +\Delta]$
+
+$\Delta$ is conventionally set to $\log(1.25) \approx 0.223$.
+
+### Evaluate and display covariate tests
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+resultsTests = covariateTest( evaluationPopFIM )
+show( resultsTests )
+```
+
+```{r, echo = FALSE, results = "asis"}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputTests, "</pre>\n", sep = "")
+```
+
+# Design optimization
+
+Both optimization algorithms share the same model, error, covariates, and covariate equation as the evaluation step. Only the arm definition and the optimizer-specific parameters differ between the two approaches. The goal is to reduce the design to **3 sampling times** while maximising the D-criterion of the population FIM.
+
+## Multiplicative algorithm
+
+The Multiplicative Algorithm operates over a **discrete** candidate set: at each iteration it reweights a probability distribution over elementary designs (one per candidate time point) and prunes those with negligible weight. It is well-suited when the candidate set is finite and moderate in size.
+
+### Define administration and sampling constraints
+
+The dose is fixed at 30 mg. Three of the five candidate sampling times are left optimizable; no windows are imposed, so the algorithm selects freely among $\{0.5, 2, 4, 6, 8\}$ h.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+administrationConstraintsRespPK = AdministrationConstraints(
+  outcome = "RespPK",
+  doses   = list( 30 )
+)
+
+samplingConstraintsRespPK = SamplingTimeConstraints(
+  outcome                      = "RespPK",
+  initialSamplings             = c( 0.5, 2, 4, 6, 8 ),
+  numberOfsamplingsOptimisable = 3
+)
+```
+
+### Create the constraint arm and the associated design
+
+The arm carries both `administrationsConstraints` and `samplingTimesConstraints`. The full set of candidate times is used as the initial sampling grid.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+armMult = Arm( name = "armOpt",
+               size = 40,
+               administrations            = list( administrationRespPK ),
+               samplingTimes              = list( samplingTimesRespPK ),
+               administrationsConstraints = list( administrationConstraintsRespPK ),
+               samplingTimesConstraints   = list( samplingConstraintsRespPK ) )
+
+designMult = Design( name = "design1", arms = list( armMult ) )
+```
+
+### Set the parameters of the Multiplicative algorithm
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+optimizationMult = Optimization(
+  name                    = "Multiplicative",
+  modelEquations          = modelEquations,
+  modelParameters         = modelParameters,
+  modelCovariates         = list( treatment, sex ),
+  modelCovariatesEquation = "exponential",
+  numberOfOccasions       = 2,
+  modelError              = modelError,
+  optimizer               = "MultiplicativeAlgorithm",
+  optimizerParameters     = list( lambda             = 0.99,
+                                  numberOfIterations = 1000,
+                                  weightThreshold    = 0.01,
+                                  delta              = 1e-04,
+                                  showProcess        = TRUE ),
+  designs                 = list( designMult ),
+  fimType                 = "population",
+  outputs                 = list( "RespPK" = "RespPK" )
+)
+```
+
+### Run the Multiplicative algorithm for the optimization with a population FIM
+
+```{r, echo = TRUE, eval = FALSE, comment=''} 
+optimizationMultPopFIM = run( optimizationMult )
+```
+
+### Display and plot Multiplicative algorithm results
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+show( optimizationMultPopFIM )
+```
+
+```{r ex03_show_mult, echo = FALSE, results = "asis", eval = .pfimVignetteHas("showOutputMult")}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputMult, "</pre>\n", sep = "")
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+plotMult_SE = PFIM::plotSE(optimizationMultPopFIM)
+```
+
+```{r ex02_plot_Mult_se, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotMult_SE")}
+plotMult_SE
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+plotMult_RSE = PFIM::plotRSE(optimizationMultPopFIM)
+```
+
+```{r ex02_plot_Mult_rse, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotMult_RSE")}
+plotMult_RSE
+```
+
+### Create and save the report for the design optimization
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+outputFile = "vignette3_optimization_Mult_populationFIM_report.html"
+Report( optimizationMultPopFIM, paths$reports,outputFile, plotOptions)
+```
+
+## Simplex algorithm
+
+The Simplex (Nelder-Mead) algorithm is a derivative-free local optimizer that searches over a **continuous** design space. It is more flexible than the Multiplicative algorithm but sensitive to the starting point and may converge to a local optimum.
+
+### Define sampling constraints
+
+Three sampling times are optimized continuously within $[0, 8]$ h, with a minimum spacing of 0.5 h between consecutive samples (`minSampling`). The initial design $\{0.5, 4, 8\}$ h seeds the starting simplex.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+samplingTimesRespPK_simplex = SamplingTimes( outcome = "RespPK", samplings = c( 0.5, 4, 8 ) )
+
+samplingConstraintsRespPK_simplex = SamplingTimeConstraints(
+  outcome                = "RespPK",
+  initialSamplings       = c( 0.5, 4, 8 ),
+  samplingsWindows       = list( c(0, 8) ),
+  numberOfTimesByWindows = c(3),
+  minSampling            = c(0.5)
+)
+```
+
+### Create the constraint arm and the associated design
+
+No administration constraints are needed here since the dose is fixed. The arm uses the Simplex-specific initial samplings and constraints.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+armSimplex = Arm( name = "armOpt",
+                  size = 40,
+                  administrations          = list( administrationRespPK ),
+                  samplingTimes            = list( samplingTimesRespPK_simplex ),
+                  samplingTimesConstraints = list( samplingConstraintsRespPK_simplex ) )
+
+designSimplex = Design( name = "design1", arms = list( armSimplex ) )
+```
+
+### Set the parameters of the Simplex algorithm
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+optimizationSimplex = Optimization(
+  name                    = "Simplex",
+  modelEquations          = modelEquations,
+  modelParameters         = modelParameters,
+  modelCovariates         = list( treatment, sex ),
+  modelCovariatesEquation = "exponential",
+  modelError              = modelError,
+  optimizer               = "SimplexAlgorithm",
+  optimizerParameters     = list( pctInitialSimplexBuilding = 20,
+                                  maxIteration              = 200,
+                                  tolerance                 = 1e-6,
+                                  showProcess               = TRUE ),
+  designs                 = list( designSimplex ),
+  fimType                 = "population",
+  outputs                 = list( "RespPK" = "RespPK" )
+)
+```
+
+### Run the Simplex algorithm for the optimization with a population FIM
+
+```{r, echo = TRUE, eval = FALSE, comment=''} 
+optimizationSimplexPopFIM = run( optimizationSimplex )
+```
+
+### Display and plot Simplex results
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+show( optimizationSimplexPopFIM )
+```
+
+```{r ex03_show_spx, echo = FALSE, results = "asis", eval = .pfimVignetteHas("showOutputSimplex")}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputSimplex, "</pre>\n", sep = "")
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+plotSimplex_SE = PFIM::plotSE(optimizationSimplexPopFIM)
+```
+
+```{r ex03_plot_Simplex_se, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotSimplex_SE")}
+plotSimplex_SE
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+plotSimplex_RSE = PFIM::plotRSE(optimizationSimplexPopFIM)
+```
+
+```{r ex03_plot_Simplex_rse, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotSimplex_RSE")}
+plotSimplex_RSE
+```
+
+### Create and save the report for the design optimization
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+outputFile = "vignette3_optimization_Simplex_populationFIM_report.html"
+Report( optimizationSimplexPopFIM, paths$reports, outputFile, plotOptions)
+```
+
+# Covariate tests on Simplex optimal design
+
+```{r, echo = TRUE, eval = FALSE, results = "asis"}
+optimisationDesign = prop( optimizationSimplexPopFIM, "optimisationDesign" )
+evaluationOptimalDesign = optimisationDesign$evaluationOptimalDesign
+
+optimalTests = covariateTest( evaluationOptimalDesign )
+
+show( optimalTests )
+```
+
+```{r ex03_show_optimal_tests, echo = FALSE, results = "asis"}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputOptimalTests, "</pre>\n", sep = "")
+```
+
+Using 3-point optimal design leads to only a slight loss of power, with N = 145 subjects required to achieve 90% power on the significance of the sex effect on V, instead of N = 141 on 5-point initial design. It also requires N = 26 subjects to assess clinical non-relevance of the treatment on Cl with 90% power, instead of N = 25 on 5-point initial design.
+
+```{r global_options_end, echo = FALSE, include = FALSE}
+options(backup_options)
+```

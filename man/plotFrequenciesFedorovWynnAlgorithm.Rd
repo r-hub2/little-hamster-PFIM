@@ -3,6 +3,15 @@
 \name{plotFrequenciesFedorovWynnAlgorithm}
 \alias{plotFrequenciesFedorovWynnAlgorithm}
 \title{Frequency trajectories of the Fedorov-Wynn algorithm}
+\value{
+A \code{ggplot2} plot object.
+}
 \description{
 Frequency trajectories of the Fedorov-Wynn algorithm
 }
+\examples{
+\dontrun{
+# help(plotFrequenciesFedorovWynnAlgorithm); vignette("Example01")
+}
+}
+\keyword{internal}

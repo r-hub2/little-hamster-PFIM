@@ -5,20 +5,34 @@
 \alias{CovariateTest}
 \title{CovariateTest Class}
 \arguments{
-\item{significance}{A \code{data.frame} for the significance test results.}
+\item{covariate}{\code{data.frame} for \eqn{\beta} significance.}
 
-\item{nonRelevance}{A \code{data.frame} for the non-relevance test results.}
+\item{parameter}{Deprecated; kept empty (typical \eqn{\mu} are not reported).}
 
-\item{relevance}{A \code{data.frame} for the relevance test results.}
+\item{nonRelevance}{\code{data.frame} for TOST non-relevance on \eqn{\beta}.}
+
+\item{relevance}{\code{data.frame} for clinical relevance on \eqn{\beta}.}
+
+\item{settings}{List of run/display options.}
+}
+\value{
+An S7 object of class \code{CovariateTest}.
 }
 \description{
-\code{CovariateTest} is the S7 class storing the covariate test results.
+\code{CovariateTest} stores covariate-test results.
 }
 \details{
-Three slots are available:
 \describe{
-  \item{significance}{Significance test (two-sided Wald, H0: beta = 0)}
-  \item{nonRelevance}{Non-relevance / TOST test (H1: ratio in [0.80, 1.25])}
-  \item{relevance}{Relevance test (H1: ratio outside [0.80, 1.25])}
+  \item{covariate}{Significance on covariate effects \eqn{\beta}}
+  \item{nonRelevance}{TOST non-relevance on \eqn{\beta}}
+  \item{relevance}{Clinical relevance on \eqn{\beta}}
+  \item{settings}{Run options (\code{tests}, \code{thetaL/U}, \code{target_power}, \code{alpha}, \code{N0})}
 }
+}
+\examples{
+\donttest{
+source(system.file("examples", "covariate-test-minimal.R", package = "PFIM"))
+class(ct)
+}
+
 }

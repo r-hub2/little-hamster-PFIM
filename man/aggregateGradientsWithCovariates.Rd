@@ -15,6 +15,8 @@ aggregateGradientsWithCovariates(model, arm)
 Numeric matrix (stacked outputs x parameters).
 }
 \description{
-Collapse nested combination-by-occasion gradients to one matrix (all outputs stacked).
+Plot / label helper only: \eqn{E[G] = \sum_c \pi_c \mathrm{mean}_k G_{c,k}}.
+Individual / Bayesian FIM must \emph{not} use this for Fisher blocks - use
+\code{.evaluateIndBayesMixtureFim()} (\eqn{\sum_c \pi_c \sum_k G^\top R^{-1} G}).
 }
 \keyword{internal}

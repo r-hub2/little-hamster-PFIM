@@ -13,8 +13,13 @@ processArmEvaluationSI(arm, model, fim, ...)
 
 \item{fim}{A \code{Fim} object.}
 
-\item{...}{\code{designName} and \code{plotOptions}.}
+\item{...}{Design label and plot options (see methods).}
+}
+\value{
+Nested list of sensitivity-index plots by design and arm.
 }
 \description{
-Sensitivity-index plots for one arm
+Re-evaluates gradients on the same dense grid as the response plots.
+Covariate \code{beta_*} columns are omitted from sensitivity plots.
 }
+\keyword{internal}

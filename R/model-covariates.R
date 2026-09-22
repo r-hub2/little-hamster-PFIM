@@ -1,46 +1,30 @@
-# Covariate/occasion gradient assembly and finite-difference Hessian for population FIM.
-
-# Covariate combination and parameter methods for Model.
+# Covariate combinations and FD Hessian for population FIM.
 NULL
 
-# S7 Method Implementations
-
+#' Evaluate model outputs over every covariate combination and occasion.
+#' @return Nested list of evaluations keyed by combination and occasion.
+#' @name evaluateModelWithCovariates
+#' @keywords internal
 method( evaluateModelWithCovariates, Model ) = function( model, arm, evaluateModelCore ) {
-
-  covariatesCombinations = prop( model, "covariatesCombination" )$combinations
-  modelParamsWithCov     = prop( model, "modelParametersWithCovariates" )
-  baseModelParameters    = prop( model, "modelParameters" )
-
-  map( seq_len( nrow( covariatesCombinations ) ), function( i ) {
-    combinationName    = covariatesCombinations$name[[i]]
-    proportion         = covariatesCombinations$proportion[[i]]
-    parametersForCombo = modelParamsWithCov[[ combinationName ]]
-
-    evaluationByOccasion = map( names( parametersForCombo ), function( occasion ) {
-      occasionParams = parametersForCombo[[ occasion ]]
-
-      updatedParameters = map2( baseModelParameters, occasionParams, function( param, newMu ) {
-        if ( prop( param, "fixedMu" ) ) return( param )
-        distribution = prop( param, "distribution" )
-        prop( distribution, "mu" ) = newMu
-        prop( param, "distribution" ) = distribution
-        param
-      })
-
-      tempModel = model
-      prop( tempModel, "modelParameters" ) = updatedParameters
-      tempModel = .pfimPrepareModelForEvaluation( tempModel, arm )
-      list( occasion = occasion, evaluation = evaluateModelCore( tempModel, arm ) )
-    })
-
-    list( combination = combinationName, proportion = proportion, evaluations = evaluationByOccasion )
-  })
+  .evaluateCovariateOccasions( model, arm, evaluateModelCore = evaluateModelCore )$evaluationModel
 }
 
+#' Report whether the model defines any covariates.
+#' @param model First argument of generic.
+#' @return Logical scalar indicating whether covariates are configured.
+#' @name hasCovariates
+#' @keywords internal
 method( hasCovariates, Model ) = function( model ) {
   length( prop( model, "modelCovariates" ) ) > 0L
 }
 
+#' Prepare all covariate-derived structures used by evaluation and the FIM.
+#'
+#' Pipeline: effect vectors -> combination grid -> occasion-specific mus -> omega.
+#' @param model First argument of generic.
+#' @return \code{Model} with covariate effects, combinations, and omega matrix prepared.
+#' @name defineCovariatesData
+#' @keywords internal
 method( defineCovariatesData, Model ) = function( model ) {
   model |>
     evaluateCovariatesEffects()         |>
@@ -49,6 +33,11 @@ method( defineCovariatesData, Model ) = function( model ) {
     evaluateOmegaMatrixFromCovariates()
 }
 
+#' Build per-covariate effect vectors aligned with model parameter names.
+#' @param model First argument of generic.
+#' @return \code{Model} with grouped covariate effect vectors.
+#' @name evaluateCovariatesEffects
+#' @keywords internal
 method( evaluateCovariatesEffects, Model ) = function( model ) {
   covariates = prop( model, "modelCovariates" )
 
@@ -71,6 +60,13 @@ method( evaluateCovariatesEffects, Model ) = function( model ) {
   model
 }
 
+#' Build the Cartesian product of categorical and IOV covariate levels.
+#'
+#' Proportions multiply across covariates; names encode \code{cov=level} pairs.
+#' @param model First argument of generic.
+#' @return \code{Model} with covariate combination grid and proportions.
+#' @name generateCovariatesCombination
+#' @keywords internal
 method( generateCovariatesCombination, Model ) = function( model ) {
   covariates = prop( model, "modelCovariates" )
 
@@ -170,6 +166,13 @@ method( generateCovariatesCombination, Model ) = function( model ) {
   model
 }
 
+#' Compute occasion-specific typical values for every covariate combination.
+#'
+#' Applies additive or exponential covariate links to mu for each occasion.
+#' @param model First argument of generic.
+#' @return \code{Model} with occasion-specific parameter sets by combination.
+#' @name modelParametersWithCovariates
+#' @keywords internal
 method( modelParametersWithCovariates, Model ) = function( model ) {
 
   modelCovariatesEquation = prop( model, "modelCovariatesEquation" )
@@ -196,20 +199,39 @@ method( modelParametersWithCovariates, Model ) = function( model ) {
   effectWithoutIov = function( rowIndex ) {
     if ( length( covWithoutIovNames ) == 0L ) return( zeroEffect )
     imap( covWithoutIovNames, function( covName, j ) {
-      catIdx = as.integer( covWithoutIovGrid[ rowIndex, j ] )
-      covariatesEffect$CategoricalCovariate[[ covName ]][[ catIdx ]]
+      catIdx  = as.integer( covWithoutIovGrid[ rowIndex, j ] )
+      catName = prop( covariateWithoutIov[[ j ]], "categories" )[[ catIdx ]]
+      pluck( covariatesEffect, "CategoricalCovariate", covName, catName )
     }) |> reduce( `+`, .init = zeroEffect )
   }
 
   # cumulated covariate effect (with IOV) for one combination row and occasion.
   effectWithIov = function( rowIndex, occIndex ) {
     if ( length( covWithIovNames ) == 0L ) return( zeroEffect )
+    occName = paste0( "occasion_", occIndex )
     imap( covWithIovNames, function( covName, j ) {
       seqIdx    = as.integer( covWithIovGrid[ rowIndex, j ] )
       sequences = prop( covariateWithIov[[ j ]], "sequences" )
-      seqName   = if ( is.null( names( sequences ) ) ) paste0( "sequence_", seqIdx ) else names( sequences )[[ seqIdx ]]
-      effList   = covariatesEffect$CategoricalCovariateWithIOV[[ covName ]][[ seqName ]]
-      if ( is.null( effList ) || occIndex > length( effList ) ) zeroEffect else effList[[ occIndex ]]
+      seqNames  = names( sequences ) %||% paste0( "sequence_", seq_along( sequences ) )
+      seqName   = seqNames[[ seqIdx ]]
+      effList   = pluck( covariatesEffect, "CategoricalCovariateWithIOV", covName, seqName )
+      if ( is.null( effList ) )
+        stop(
+          sprintf(
+            "No IOV effect list for covariate '%s', sequence '%s'.",
+            covName, seqName
+          ),
+          call. = FALSE
+        )
+      if ( !occName %in% names( effList ) )
+        stop(
+          sprintf(
+            "No IOV effect for covariate '%s', sequence '%s', %s.",
+            covName, seqName, occName
+          ),
+          call. = FALSE
+        )
+      effList[[ occName ]]
     }) |> reduce( `+`, .init = zeroEffect )
   }
 
@@ -239,71 +261,111 @@ method( modelParametersWithCovariates, Model ) = function( model ) {
   model
 }
 
+#' Cache the IIV variance diagonal (\eqn{\omega^2}) on the model.
+#' @param model First argument of generic.
+#' @return \code{Model} with \code{omegaWithIOV} variance matrix populated.
+#' @name evaluateOmegaMatrixFromCovariates
+#' @keywords internal
 method( evaluateOmegaMatrixFromCovariates, Model ) = function( model ) {
 
   modelParameters = prop( model, "modelParameters" )
   paramNames      = map_chr( modelParameters, ~ prop( .x, "name" ) )
 
-  # omega / gamma store standard deviations; square them for the variance matrix.
-  omegaDiag = map_dbl( modelParameters, ~ prop( prop( .x, "distribution" ), "omega" ) )
-  gammaDiag = map_dbl( modelParameters, ~ prop( .x, "gamma" ) )
+  # omega stores standard deviations; cache squared IIV diagonal for population FIM.
+  # IOV gamma remains on parameters (occasion structure is in V, not here).
+  omegaDiag = map_dbl( modelParameters, ~ prop( prop( .x, "distribution" ), "omega" ) )^2
 
-  omegaMat = diag( omegaDiag^2 )
-  gammaMat = diag( gammaDiag^2 )
-
-  maxOccasions = getNumberOfOccasionsForModel( model )
-  nIov         = max( maxOccasions - 1L, 0L )
-  nIiv         = length( paramNames )
-  nTotal       = nIiv + nIov * nIiv
-
-  # IOV block indices: occasion k occupies rows/cols [nIiv + (k-1)*nIiv + 1 : nIiv + k*nIiv].
-  # reduce() threads gammaMat into each block; with an empty list it returns .init unchanged.
-  iovIndices   = map( seq_len( nIov ), ~ nIiv + ( .x - 1L ) * nIiv + seq_len( nIiv ) )
-  base         = matrix( 0, nrow = nTotal, ncol = nTotal )
-  base[ seq_len( nIiv ), seq_len( nIiv ) ] = omegaMat
-
-  omegaWithIOV = reduce( iovIndices,
-                         function( mat, idx ) { mat[ idx, idx ] = gammaMat; mat },
-                         .init = base
-  )
-
-  iovNames = if ( nIov > 0L ) {
-    paste0( rep( paramNames, nIov ), "_occ", rep( seq_len( nIov ), each = nIiv ) )
-  } else character( 0L )
-
-  dimnames( omegaWithIOV ) = list( c( paramNames, iovNames ), c( paramNames, iovNames ) )
+  omegaWithIOV = diag( omegaDiag, nrow = length( paramNames ) )
+  dimnames( omegaWithIOV ) = list( paramNames, paramNames )
 
   prop( model, "omegaWithIOV" ) = omegaWithIOV
   model
 }
 
+#' Cached IIV variance diagonal (\eqn{\omega^2}) from model parameters.
+#' @param model \code{Model} object, optionally with \code{omegaWithIOV} populated.
+#' @return Numeric vector of IIV variances aligned with \code{modelParameters}.
+#' @noRd
+#' @keywords internal
+.modelOmegaIIVVariance = function( model ) {
+  omegaMat = prop( model, "omegaWithIOV" )
+  npar = length( prop( model, "modelParameters" ) )
+  if ( is.matrix( omegaMat ) && nrow( omegaMat ) == npar && ncol( omegaMat ) == npar )
+    return( diag( omegaMat ) )
+  map_dbl(
+    prop( model, "modelParameters" ),
+    ~ prop( prop( .x, "distribution" ), "omega" )^2
+  )
+}
+
+#' Precompute the finite-difference shift grid for gradient evaluation.
+#'
+#' Relative steps are \eqn{\varepsilon^{1/3}\max(|\mu|, 10^{-4})}. Scale mus to
+#' O(1) so the absolute floor does not dominate the truncation error.
+#' @param model First argument of generic.
+#' @return \code{Model} with finite-difference gradient precomputation fields.
+#' @name finiteDifferenceHessian
+#' @keywords internal
 method( finiteDifferenceHessian, Model ) = function( model ) {
 
-  pars    = map_dbl( prop( model, "modelParameters" ), ~ prop( prop( .x, "distribution" ), "mu" ) )
-  npar    = length( pars )
-  relStep = .Machine$double.eps^( 1 / 3 )
-  incr    = pmax( abs( pars ), 1e-4 ) * relStep
-  baseInd = diag( npar )
+  parameters = prop( model, "modelParameters" )
+  pars       = map_dbl( parameters, ~ prop( prop( .x, "distribution" ), "mu" ) )
+  freeIdx    = .pfimFdFreeIndices( parameters )
 
-  # Build shift columns and quadratic-approximation fraction vector.
-  extraCols = map( seq_len( npar - 1L ), ~ baseInd[ , .x ] + baseInd[ , -seq_len( .x ) ] )
-  extraFrac = map( seq_len( npar - 1L ), ~ incr[ .x ] * incr[ -seq_len( .x ) ]            )
-
-  cols    = c( list( 0, baseInd, -baseInd ), extraCols )
-  frac    = c( 1, incr, incr^2, unlist( extraFrac ) )
-  indMat  = do.call( cbind, cols )
-  shifted = pars + incr * indMat
-
-  indMatT = t( indMat )
-  Xcols   = c(
-    list( 1, indMatT, indMatT^2 ),
-    map( seq_len( npar - 1L ), ~ indMatT[ , .x ] * indMatT[ , -seq_len( .x ) ] )
-  )
-
-  prop( model, "parametersForComputingGradient" ) = list(
-    XcolsInv = .safeSolve( do.call( cbind, Xcols ) ),
-    shifted  = shifted,
-    frac     = frac
-  )
+  prop( model, "parametersForComputingGradient" ) =
+    .pfimFiniteDifferenceGrid(
+      pars, freeIdx,
+      odeSolverParameters = prop( model, "odeSolverParameters" ),
+      scaleToOdeTol = .pfimIsOdeModel( model )
+    )
   model
+}
+
+#' Update parameter mus for a specific occasion.
+#' @param baseModelParameters List of \code{ModelParameter} objects to copy and update.
+#' @param occasionParams Named numeric vector of occasion-specific \code{mu} values.
+#' @param respectFixedMu Logical scalar; keep fixed parameters unchanged when \code{TRUE}.
+#' @return Updated list of \code{ModelParameter} objects.
+#' @noRd
+#' @keywords internal
+.updateParamsForOccasion = function( baseModelParameters, occasionParams, respectFixedMu = FALSE ) {
+  map( baseModelParameters, function( param ) {
+    param = .pfimCloneS7( param )
+    if ( respectFixedMu && prop( param, "fixedMu" ) ) return( param )
+    pName = prop( param, "name" )
+    newMu = unname( occasionParams[[ pName ]] )
+    if ( is.null( newMu ) || length( newMu ) != 1L ) return( param )
+    distribution = prop( param, "distribution" )
+    prop( distribution, "mu" ) = newMu
+    prop( param, "distribution" ) = distribution
+    param
+  })
+}
+
+#' Build a temporary model for one covariate occasion.
+#' @param model \code{Model} object used as template.
+#' @param arm \code{Arm} object used to define administration.
+#' @param baseModelParameters List of base \code{ModelParameter} objects.
+#' @param occasionParams Named numeric vector of occasion-specific parameters.
+#' @param needFd Logical scalar indicating whether FD setup is required.
+#' @return \code{Model} configured for one covariate-occasion evaluation.
+#' @noRd
+#' @keywords internal
+.modelForCovariateOccasion = function(
+    model, arm, baseModelParameters, occasionParams, needFd = FALSE ) {
+  tempModel = .pfimCloneS7( model )
+  # needFd: overwrite every mu with occasion theta so the FD grid includes
+  # fixedMu params at their covariate-adjusted value. Plain evaluation keeps
+  # fixedMu at the base (reference) mu via respectFixedMu = TRUE.
+  prop( tempModel, "modelParameters" ) = .updateParamsForOccasion(
+    baseModelParameters, occasionParams, respectFixedMu = !needFd
+  )
+  if ( needFd ) {
+    # FD is on theta for this occasion only; strip covxocc so .fdModelEvaluations
+    # does not recurse into evaluateModelGradientWithCovariates.
+    prop( tempModel, "modelCovariates" ) = list()
+    prop( tempModel, "numberOfOccasions" ) = 1L
+    tempModel = .pfimFiniteDifferenceHessianCached( tempModel )
+  }
+  .pfimPrepareModelForEvaluation( tempModel, arm )
 }

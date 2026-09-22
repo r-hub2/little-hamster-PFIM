@@ -8,6 +8,7 @@
 #' @inheritParams Model
 #' @include ModelInfusion.R
 #' @include ModelAnalytic.R
+#' @return An S7 object of class \code{ModelAnalyticInfusionSteadyState}.
 #' @export
 
 ModelAnalyticInfusionSteadyState = new_class( "ModelAnalyticInfusionSteadyState",
@@ -21,48 +22,68 @@ ModelAnalyticInfusionSteadyState = new_class( "ModelAnalyticInfusionSteadyState"
                                               ))
 
 
+#' Compile analytic wrappers for during/after infusion (with and without admin).
+#'
+#' Splits library equations into administered vs non-administered outcomes, then
+#' builds four R functions via \code{.buildAnalyticWrapper}. Steady state adds
+#' \code{tau} to the shared formal argument list.
+#' @return Updated model with compiled infusion steady-state wrappers.
+#' @name defineModelWrapper
+#' @keywords internal
 method( defineModelWrapper, ModelAnalyticInfusionSteadyState ) = function( model, evaluation ) {
 
+  # Outcomes that receive dosing vs library names used in equation keys.
   outcomesWithAdministration = .getOutcomesFromEvaluation( evaluation )
   libraryOutcomesWithAdmin   = .administeredLibraryOutcomeNames( evaluation )
 
+  # Formal names injected into each analytic wrapper: dose_*, Tinf_*, t_*, params, tau.
   parameters     = prop( evaluation, "modelParameters" )
   parameterNames = map_chr( parameters, "name" )
   doseNames      = paste0( "dose_", outcomesWithAdministration )
   timeNames      = paste0( "t_",    outcomesWithAdministration )
   TinfNames      = paste0( "Tinf_", outcomesWithAdministration )
 
+  # Split during/after equations into administered vs passive outcomes.
   equations                  = prop( evaluation, "modelEquations" )
   equationsDuringWithAdmin   = equations$duringInfusion[  names( equations$duringInfusion ) %in% libraryOutcomesWithAdmin ]
   equationsAfterWithAdmin    = equations$afterInfusion[   names( equations$afterInfusion  ) %in% libraryOutcomesWithAdmin ]
   equationsDuringWithNoAdmin = equations$duringInfusion[ !names( equations$duringInfusion ) %in% libraryOutcomesWithAdmin ]
   equationsAfterWithNoAdmin  = equations$afterInfusion[  !names( equations$afterInfusion  ) %in% libraryOutcomesWithAdmin ]
 
-  outputsForEvaluation = prop( evaluation, "outputs" )
-  outputAdmin   = unlist( outputsForEvaluation[[1L]] )
-  outputNoAdmin = if ( length( outputsForEvaluation ) >= 2L ) unlist( outputsForEvaluation[[2L]] ) else character(0L)
+  outputDuringAdmin   = names( equationsDuringWithAdmin )
+  outputDuringNoAdmin = names( equationsDuringWithNoAdmin )
+  outputAfterAdmin    = names( equationsAfterWithAdmin )
+  outputAfterNoAdmin  = names( equationsAfterWithNoAdmin )
+  timeNamesNoAdmin = unique( c(
+    .libraryEquationTimeNames( evaluation, outputDuringNoAdmin ),
+    .libraryEquationTimeNames( evaluation, outputAfterNoAdmin )
+  ) )
 
-  # Steady-state adds "tau" to the full shared argument list.
-  functionArguments = unique( c( doseNames, TinfNames, outcomesWithAdministration,
-                                 parameterNames, timeNames, "tau" ) )
+  # Steady-state dosing interval "tau" is required by the closed-form expressions.
+  functionArgumentsAdmin   = unique( c( doseNames, TinfNames, parameterNames, timeNames, "tau" ) )
+  functionArgumentsNoAdmin = unique( c( outcomesWithAdministration, parameterNames, timeNamesNoAdmin, "tau" ) )
 
+  # Four evaluators: (during|after) x (administered|passive) outcomes.
   prop( model, "wrapperModelAnalyticInfusion" ) = list(
     functionDefinitionDuringInfusionWithAdmin   = .buildAnalyticWrapper(
-      equationsDuringWithAdmin, functionArguments,
-      .libraryEquationTimeNames( evaluation, names( equationsDuringWithAdmin ) ), outputAdmin ),
+      equationsDuringWithAdmin, functionArgumentsAdmin,
+      .libraryEquationTimeNames( evaluation, names( equationsDuringWithAdmin ) ), outputDuringAdmin ),
     functionDefinitionDuringInfusionWithNoAdmin = .buildAnalyticWrapper(
-      equationsDuringWithNoAdmin, functionArguments,
-      .libraryEquationTimeNames( evaluation, names( equationsDuringWithNoAdmin ) ), outputNoAdmin ),
+      equationsDuringWithNoAdmin, functionArgumentsNoAdmin,
+      .libraryEquationTimeNames( evaluation, names( equationsDuringWithNoAdmin ) ), outputDuringNoAdmin ),
     functionDefinitionAfterInfusionWithAdmin    = .buildAnalyticWrapper(
-      equationsAfterWithAdmin, functionArguments,
-      .libraryEquationTimeNames( evaluation, names( equationsAfterWithAdmin ) ), outputAdmin ),
+      equationsAfterWithAdmin, functionArgumentsAdmin,
+      .libraryEquationTimeNames( evaluation, names( equationsAfterWithAdmin ) ), outputAfterAdmin ),
     functionDefinitionAfterInfusionWithNoAdmin  = .buildAnalyticWrapper(
-      equationsAfterWithNoAdmin, functionArguments,
-      .libraryEquationTimeNames( evaluation, names( equationsAfterWithNoAdmin ) ), outputNoAdmin )
+      equationsAfterWithNoAdmin, functionArgumentsNoAdmin,
+      .libraryEquationTimeNames( evaluation, names( equationsAfterWithNoAdmin ) ), outputAfterNoAdmin )
   )
-  prop( model, "functionArgumentsModelAnalyticInfusion" ) = list( functionArguments = functionArguments )
+  prop( model, "functionArgumentsModelAnalyticInfusion" ) = list(
+    functionArguments = functionArgumentsAdmin,
+    functionArgumentsNoAdmin = functionArgumentsNoAdmin
+  )
   prop( model, "functionArgumentsSymbolModelAnalyticInfusion" ) = list(
-    functionArgumentsSymbol = map( functionArguments, as.symbol )
+    functionArgumentsSymbol = map( functionArgumentsAdmin, as.symbol )
   )
   prop( model, "outputNames" ) = unlist( names( equations$duringInfusion ) )
   prop( model, "outcomesWithAdministration" ) = outcomesWithAdministration
@@ -71,46 +92,26 @@ method( defineModelWrapper, ModelAnalyticInfusionSteadyState ) = function( model
 }
 
 
+#' Build per-outcome dose / infusion / sampling tables for the analytic solver.
+#'
+#' For \code{tau != 0}, expands a single steady-state dose into a regular grid
+#' \code{0, tau, 2*tau, ...} up to the last sampling time. Labels each sampling
+#' as \code{duringInfusion} or \code{afterInfusion}, and records which dose index
+#' is active at that time (for superposition of past infusions).
+#' @return Updated model with \code{samplings} and \code{solverInputs}.
+#' @name defineModelAdministration
+#' @keywords internal
 method( defineModelAdministration, ModelAnalyticInfusionSteadyState ) = function( model, arm ) {
 
   administrations            = prop( arm,   "administrations" )
   outcomesWithAdministration = prop( model, "outcomesWithAdministration" )
-  samplingTimes              = prop( arm,   "samplingTimes" )
-  samplings                  = map( samplingTimes, ~ prop( .x, "samplings" ) ) |>
-    unlist() |> sort() |> unique()
-  maxSampling = max( samplings )
+  samplings                  = .analyticSamplingGrid( arm )
 
   solverInputs = map( administrations, function( adm ) {
-    tau      = prop( adm, "tau" )
-    dosing   = .alignAdministrationDosing( adm )
-    timeDose = dosing$timeDose
-    dose     = dosing$dose
-    Tinf     = dosing$Tinf
-
-    if ( tau != 0 ) {
-      timeDose = seq( 0, maxSampling, tau )
-      dose     = rep( dose, length( timeDose ) )
-      Tinf     = rep( Tinf, length( timeDose ) )
-    }
-
-    # outcomes do not accumulate each other's infusion-window labels.
-    duringAndAfter = rep( "afterInfusion", length( samplings ) )
-
-    Tinfs = map2( timeDose, timeDose + Tinf, c )
-    samplingsDuringInfusion = map( Tinfs, function( iv ) {
-      samplings |> keep( ~ .x >= min(iv) & .x < max(iv) )
-    }) |> unlist() |> unique()
-    duringAndAfter[ samplings %in% samplingsDuringInfusion ] = "duringInfusion"
-
-    samplingTimeDoses = timeDose |> map( ~ ifelse( samplings - .x > 0, samplings - .x, 0 ) )
-    indicesDoses = map_int( samplings, function( s ) {
-      idx = which( s >= timeDose ); idx[ length(idx) ]
-    })
-
-    data = data.frame( duringAndAfter, indicesDoses, samplings, samplingTimeDoses )
-    colnames( data ) = c( "duringAndAfter", "indicesDoses", "samplings",
-                          paste0( "samplingTimeDoses", seq_along( dose ) ) )
-    list( data = data, dose = dose, Tinf = Tinf, tau = tau )
+    dosing = .alignAdministrationDosing( adm )
+    .analyticInfusionWindowTable(
+      samplings, dosing$timeDose, dosing$dose, dosing$Tinf, prop( adm, "tau" )
+    )
   }) |> set_names( outcomesWithAdministration )
 
   prop( model, "samplings" ) = samplings
@@ -120,7 +121,22 @@ method( defineModelAdministration, ModelAnalyticInfusionSteadyState ) = function
 }
 
 
-method( evaluateModel, ModelAnalyticInfusionSteadyState ) = function( model, arm ) {
+#' Evaluate analytic infusion steady-state concentrations at all sampling times.
+#'
+#' For each observation time and administered outcome:
+#' \enumerate{
+#'   \item If inside an infusion window: evaluate the during-infusion formula for
+#'     the current dose; if earlier doses exist, add their after-infusion remnants.
+#'   \item If after an infusion: evaluate the after-infusion formula for the
+#'     current dose, again superposing remnants of previous doses.
+#' }
+#' Passive (non-admin) equations are evaluated once the administered outcome value
+#' is assigned into the shared evaluation environment.
+#' @param model A \code{ModelAnalyticInfusionSteadyState} object.
+#' @param arm   An \code{Arm} object.
+#' @return Named list of output data frames at requested sampling times.
+#' @keywords internal
+evaluateAnalyticInfusionSteadyStateCore = function( model, arm ) {
 
   administrations            = prop( arm,   "administrations" )
   outcomesWithAdministration = map_chr( administrations, ~ prop( .x, "outcome" ) )
@@ -128,101 +144,60 @@ method( evaluateModel, ModelAnalyticInfusionSteadyState ) = function( model, arm
   solverInputs               = prop( model, "solverInputs" )
   samplings                  = prop( model, "samplings" )
 
-  wrappers        = prop( model, "wrapperModelAnalyticInfusion" )
-  fnDuringAdmin   = wrappers$functionDefinitionDuringInfusionWithAdmin
-  fnDuringNoAdmin = wrappers$functionDefinitionDuringInfusionWithNoAdmin
-  fnAfterAdmin    = wrappers$functionDefinitionAfterInfusionWithAdmin
-  fnAfterNoAdmin  = wrappers$functionDefinitionAfterInfusionWithNoAdmin
-
-  functionArguments = prop( model, "functionArgumentsModelAnalyticInfusion" )$functionArguments
-  functionArgumentsSymbol = prop( model, "functionArgumentsSymbolModelAnalyticInfusion" )$functionArgumentsSymbol
-  argsTemplate = stats::setNames( functionArgumentsSymbol, functionArguments )
-
+  raw = prop( model, "wrapperModelAnalyticInfusion" )
+  wrappers = .analyticBindUserEnv(
+    raw$functionDefinitionDuringInfusionWithAdmin,
+    raw$functionDefinitionDuringInfusionWithNoAdmin,
+    raw$functionDefinitionAfterInfusionWithAdmin,
+    raw$functionDefinitionAfterInfusionWithNoAdmin
+  )
+  fnDuringAdmin  = wrappers[[ 1L ]]
+  fnAfterAdmin   = wrappers[[ 3L ]]
+  fnAfterNoAdmin = wrappers[[ 4L ]]
   mu = .extractMu( prop( model, "modelParameters" ) )
-  list2env( as.list( mu ), envir = environment() )
 
-  evaluationModelTmpList = map( seq_along( samplings ), function( iterTime ) {
-
-    outcomesResults = map( outcomesWithAdministration, function( outcome ) {
-      data         = solverInputs[[ outcome ]]$data
-      tau          = solverInputs[[ outcome ]]$tau
-      duringAfter  = data$duringAndAfter[ iterTime ]
-      indicesDoses = data$indicesDoses[ iterTime ]
-      sampCols     = colnames( data )[ str_detect( colnames( data ), "samplingTimeDoses" ) ]
-      sampTimes    = as.numeric( data[ iterTime, sampCols ] ) |> unlist() |> unname()
-
-      evalAdmin = if ( duringAfter == "duringInfusion" ) {
-        if ( indicesDoses == 1L ) {
-          assign( paste0( "t_", outcome ), sampTimes[ indicesDoses ], envir = environment() )
-          assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ indicesDoses ], envir = environment() )
-          assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ indicesDoses ], envir = environment() )
-          do.call( fnDuringAdmin, argsTemplate ) |> unlist()
-        } else {
-          sampTimesUsed = sampTimes[ seq_len( indicesDoses ) ]
-          samplingDuring = tail( sampTimesUsed, 1L )
-          samplingAfter  = sampTimesUsed[ seq_len( indicesDoses - 1L ) ]
-
-          assign( paste0( "t_", outcome ), samplingDuring, envir = environment() )
-          assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ indicesDoses ], envir = environment() )
-          assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ indicesDoses ], envir = environment() )
-
-          evalDuring = do.call( fnDuringAdmin, argsTemplate ) |> unlist()
-          evalDuring + sum( map_dbl( seq_len( indicesDoses - 1L ), function( idx ) {
-            assign( paste0( "t_", outcome ), samplingAfter[ idx ], envir = environment() )
-            assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ idx ], envir = environment() )
-            assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ idx ], envir = environment() )
-            do.call( fnAfterAdmin, argsTemplate ) |> unlist()
-          } ) )
-        }
-      } else if ( indicesDoses == 1L ) {
-        assign( paste0( "t_", outcome ), sampTimes[ indicesDoses ], envir = environment() )
-        assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ indicesDoses ], envir = environment() )
-        assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ indicesDoses ], envir = environment() )
-        do.call( fnAfterAdmin, argsTemplate ) |> unlist()
-      } else {
-        sampTimesUsed = sampTimes[ seq_len( indicesDoses ) ]
-        samplingDuring = tail( sampTimesUsed, 1L )
-        samplingAfter  = sampTimesUsed[ seq_len( indicesDoses - 1L ) ]
-
-        assign( paste0( "t_", outcome ), samplingDuring, envir = environment() )
-        assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ indicesDoses ], envir = environment() )
-        assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ indicesDoses ], envir = environment() )
-
-        evalAfter = do.call( fnAfterAdmin, argsTemplate ) |> unlist()
-        evalAfter + sum( map_dbl( seq_len( indicesDoses - 1L ), function( idx ) {
-          assign( paste0( "t_", outcome ), samplingAfter[ idx ], envir = environment() )
-          assign( paste0( "dose_", outcome ), solverInputs[[ outcome ]]$dose[ idx ], envir = environment() )
-          assign( paste0( "Tinf_", outcome ), solverInputs[[ outcome ]]$Tinf[ idx ], envir = environment() )
-          do.call( fnAfterAdmin, argsTemplate ) |> unlist()
-        } ) )
-      }
-
-      assign( outcome, evalAdmin, envir = environment() )
-      evalNoAdmin = do.call( fnAfterNoAdmin, argsTemplate ) |> unlist()
-
-      if ( is.null( evalNoAdmin ) || length( evalNoAdmin ) == 0L )
-        data.frame( evalAdmin )
-      else
-        data.frame( evalAdmin, evalNoAdmin )
-    })
-
-    data.frame( time = samplings[[ iterTime ]], do.call( cbind, outcomesResults ) )
-  })
-
-  evaluationModelTmp = list_rbind( evaluationModelTmpList )
-  colnames( evaluationModelTmp ) = c( "time", outputNames )
-
-  samplings_by_output = set_names(
-    map( prop( arm, "samplingTimes" ), ~ prop( .x, "samplings" ) ),
-    outputNames
+  tmp = .analyticEvalGrid(
+    samplings, outcomesWithAdministration, as.list( mu ),
+    function( iterTime, outcome, args ) {
+      data = solverInputs[[ outcome ]]$data
+      args[[ "tau" ]] = solverInputs[[ outcome ]]$tau
+      admin = .analyticEvalInfusionAdmin(
+        data$duringAndAfter[ iterTime ],
+        data$indicesDoses[ iterTime ],
+        .analyticInfusionSampleTimes( data, iterTime ),
+        solverInputs[[ outcome ]]$dose,
+        solverInputs[[ outcome ]]$Tinf,
+        args,
+        paste0( "t_", outcome ),
+        paste0( "dose_", outcome ),
+        paste0( "Tinf_", outcome ),
+        fnDuringAdmin,
+        fnAfterAdmin
+      )
+      args[[ outcome ]] = admin
+      argsNoAdmin = .pfimFillMissingTimeFormals( fnAfterNoAdmin, args, samplings[[ iterTime ]] )
+      list( admin = admin, noAdmin = do.call( fnAfterNoAdmin, argsNoAdmin )[[ 1L ]], args = args )
+    }
   )
-  set_names(
-    map( outputNames, ~ evaluationModelTmp[ evaluationModelTmp$time %in% samplings_by_output[[ .x ]], c( "time", .x ) ] ),
-    outputNames
-  )
+  .analyticFinishEvaluation( tmp, outputNames, arm )
 }
 
 
+#' Dispatch: covariate/occasion structure -> specialised path; else core evaluator.
+#' @return Named list of output data frames at requested sampling times.
+#' @name evaluateModel
+#' @keywords internal
+method( evaluateModel, ModelAnalyticInfusionSteadyState ) = function( model, arm ) {
+  .analyticDispatchEvaluate( model, arm, evaluateAnalyticInfusionSteadyStateCore )
+}
+
+
+#' Return PK equations stored on the model (library / user analytic infusion SS).
+#' @param pkModel First argument of generic.
+#' @param pfimproject \code{PFIMProject} object (unused).
+#' @return List of PK equations from \code{pkModel}.
+#' @name definePKModel
+#' @keywords internal
 method( definePKModel, list( ModelAnalyticInfusionSteadyState, PFIMProject ) ) = function( pkModel, pfimproject ) {
   prop( pkModel, "modelEquations" )
 }

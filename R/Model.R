@@ -20,14 +20,18 @@
 #' @param outcomesWithNoAdministration Outcomes without dosing.
 #' @param modelError List of residual error models.
 #' @param odeSolverParameters \code{atol} and \code{rtol} for \code{deSolve}.
-#' @param parametersForComputingGradient Parameters used in finite-difference Hessians.
+#'   Finite-difference gradients assume parameter mus are O(1); values with
+#'   \eqn{|\mu| < 10^{-4}} use an absolute step floor.
+#' @param parametersForComputingGradient Internal FD stencil (\code{eps^{1/3}}
+#'   relative steps).
 #' @param initialConditions ODE initial conditions.
 #' @param functionArguments Names passed to the model function.
 #' @param functionArgumentsSymbol Symbolic argument list for parsing.
-#' @param numberOfOccasions Inferred number of study occasions (stored on the model after
-#'   \code{defineModelType()}); see \code{\link{inferNumberOfOccasions}}. Not a user argument
-#'   on \code{Evaluation} or \code{Optimization}.
+#' @param numberOfOccasions Number of study occasions (set on the \code{Model} in
+#'   \code{defineModelType()} from \code{Evaluation}/\code{Optimization}; validated against
+#'   \code{\link{inferNumberOfOccasions}}).
 #' @include CovariateModelEquation.R
+#' @return An S7 object of class \code{Model}.
 #' @export
 
 Model = new_class( "Model", package = "PFIM",
@@ -35,7 +39,7 @@ Model = new_class( "Model", package = "PFIM",
                    properties = list(
                      name                           = new_property( class_character,        default = character(0) ),
                      modelParameters                = new_property( class_list,             default = list()       ),
-                     modelCovariatesEquation        = new_property( CovariateModelEquation, default = NULL         ),
+                     modelCovariatesEquation        = new_property( NULL | CovariateModelEquation, default = NULL ),
                      modelCovariates                = new_property( class_list,             default = list()       ),
                      covariatesEffect               = new_property( class_list,             default = list()       ),
                      covariatesCombination          = new_property( class_list,             default = list()       ),
@@ -44,7 +48,7 @@ Model = new_class( "Model", package = "PFIM",
                      omegaWithIOV                   = new_property( class_double,           default = numeric(0)   ),
                      samplings                      = new_property( class_numeric,          default = numeric(0)   ),
                      modelEquations                 = new_property( class_list,             default = list()       ),
-                     wrapper                        = new_property( class_function,         default = NULL         ),
+                     wrapper                        = new_property( class_function | NULL,  default = NULL         ),
                      outputFormula                  = new_property( class_list,             default = list()       ),
                      outputNames                    = new_property( class_character,        default = character(0) ),
                      variableNames                  = new_property( class_character,        default = character(0) ),
@@ -56,64 +60,105 @@ Model = new_class( "Model", package = "PFIM",
                      initialConditions              = new_property( class_double,           default = numeric(0)   ),
                      functionArguments              = new_property( class_character,        default = character(0) ),
                      functionArgumentsSymbol        = new_property( class_list,             default = list()       )
-                   ) )
+                   ),
+                   validator = function( self ) {
+                     checks = list(
+                       list( prop( self, "modelParameters" ), ModelParameter, "Model:modelParameters", "ModelParameter" ),
+                       list( prop( self, "modelCovariates" ), Covariate, "Model:modelCovariates", "Covariate" ),
+                       list( prop( self, "modelError" ), ModelError, "Model:modelError", "ModelError" )
+                     )
+                     msgs = compact( map( checks, function( chk )
+                       do.call( .validateS7List, chk ) ) )
+                     if ( length( msgs ) )
+                       return( msgs[[ 1L ]] )
+                     NULL
+                   } )
 
 #' Compile model equations and output mapping before evaluation
 #' @param model A \code{Model} object.
-#' @param ... \code{evaluation} or \code{arm}, depending on the method.
+#' @param ... PFIMProject passed to methods.
+#' @usage defineModelWrapper(model, ...)
 #' @name defineModelWrapper
-#' @export
+#' @keywords internal
 defineModelWrapper                = new_generic( "defineModelWrapper",                c( "model" ) )
 
 #' Bind dosing schedules and sampling grids to the model
 #' @param model A \code{Model} object.
-#' @param ... \code{arm} for model methods.
+#' @param ... Arm passed to methods.
+#' @usage defineModelAdministration(model, ...)
 #' @name defineModelAdministration
-#' @export
+#' @keywords internal
 defineModelAdministration         = new_generic( "defineModelAdministration",         c( "model" ) )
 
 #' Predict model responses at arm sampling times
 #' @param model A \code{Model} object.
-#' @param ... \code{arm} for model methods.
+#' @param ... Arm passed to methods.
+#' @usage evaluateModel(model, ...)
 #' @name evaluateModel
-#' @export
+#' @keywords internal
 evaluateModel                     = new_generic( "evaluateModel",                     c( "model" ) )
 
 #' Gradients of model responses with respect to parameters
 #' @param model A \code{Model} object.
-#' @param ... \code{arm} for model methods.
+#' @param ... Arm passed to methods.
+#' @usage evaluateModelGradient(model, ...)
 #' @name evaluateModelGradient
-#' @export
+#' @keywords internal
 evaluateModelGradient             = new_generic( "evaluateModelGradient",             c( "model" ) )
 
 #' Residual variance at sampling times for an arm
 #' @param model A \code{Model} object.
-#' @param ... \code{arm} for model methods.
+#' @param ... Arm passed to methods.
+#' @usage evaluateModelVariance(model, ...)
 #' @name evaluateModelVariance
-#' @export
+#' @keywords internal
 evaluateModelVariance             = new_generic( "evaluateModelVariance",             c( "model" ) )
 
 #' Evaluate ODE initial conditions from the arm
 #' @param model A \code{Model} object.
-#' @param ... \code{arm} and optionally \code{doseEvent} for bolus ODE models.
+#' @param ... Arm and optional bolus dose-event data (see methods).
+#' @usage evaluateInitialConditions(model, ...)
 #' @name evaluateInitialConditions
-#' @export
+#' @keywords internal
 evaluateInitialConditions         = new_generic( "evaluateInitialConditions",         c( "model" ) )
 
 #' Finite-difference perturbations for gradient computation
 #' @param model A \code{Model} object.
 #' @param ... Optional method arguments.
 #' @name finiteDifferenceHessian
-#' @export
+#' @keywords internal
 finiteDifferenceHessian           = new_generic( "finiteDifferenceHessian",           c( "model" ) )
+
+#' Build covariate effect vectors for model parameters
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name evaluateCovariatesEffects
+#' @keywords internal
 evaluateCovariatesEffects         = new_generic( "evaluateCovariatesEffects",         c( "model" ) )
+
+#' Construct omega matrix with IOV structure from covariates
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name evaluateOmegaMatrixFromCovariates
+#' @keywords internal
 evaluateOmegaMatrixFromCovariates = new_generic( "evaluateOmegaMatrixFromCovariates", c( "model" ) )
+
+#' Generate covariate combination grid and proportions
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name generateCovariatesCombination
+#' @keywords internal
 generateCovariatesCombination     = new_generic( "generateCovariatesCombination",     c( "model" ) )
 
 #' Remap library PK equations onto project compartments
 #' @param pkModel Library PK model object.
 #' @param pfimproject A \code{PFIMProject}, \code{Evaluation}, or \code{Optimization} object.
 #' @param ... Optional method arguments.
+#' @return List of PK model equations for the project compartments.
+#' @examples
+#' \dontrun{
+#' vignette("LibraryOfModels")
+#' }
 #' @name definePKModel
 #' @export
 definePKModel                     = new_generic( "definePKModel",   c( "pkModel", "pfimproject" ) )
@@ -123,21 +168,50 @@ definePKModel                     = new_generic( "definePKModel",   c( "pkModel"
 #' @param pdModel Library PD model object.
 #' @param pfimproject A \code{PFIMProject}, \code{Evaluation}, or \code{Optimization} object.
 #' @param ... Optional method arguments.
+#' @return Combined PK/PD equation list for the project.
+#' @examples
+#' \dontrun{
+#' vignette("LibraryOfModels")
+#' }
 #' @name definePKPDModel
 #' @export
 definePKPDModel                   = new_generic( "definePKPDModel", c( "pkModel", "pdModel", "pfimproject" ) )
+
+#' Build occasion-specific parameters for each covariate combination
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name modelParametersWithCovariates
+#' @keywords internal
 modelParametersWithCovariates     = new_generic( "modelParametersWithCovariates",     c( "model" ) )
+
+#' Prepare all model covariate-derived data structures
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name defineCovariatesData
+#' @keywords internal
 defineCovariatesData              = new_generic( "defineCovariatesData",              c( "model" ) )
+
+#' Report whether a model includes covariates
+#' @param model A \code{Model} object.
+#' @param ... Optional method arguments.
+#' @name hasCovariates
+#' @keywords internal
 hasCovariates                     = new_generic( "hasCovariates",                     c( "model" ) )
+
+#' Evaluate model outputs over covariate combinations and occasions
+#' @param model A \code{Model} object.
+#' @param ... Arm and evaluation core function (see methods).
+#' @usage evaluateModelWithCovariates(model, ...)
+#' @name evaluateModelWithCovariates
+#' @keywords internal
 evaluateModelWithCovariates       = new_generic( "evaluateModelWithCovariates",       c( "model" ) )
 
 
-# Integer codes for the covariate-equation type (avoids magic numbers throughout).
+# Covariate-equation type codes used by gradient chain-rule branches.
 modelCovEqExponential = 1L   # theta = mu * exp(beta * cov)
 modelCovEqAdditive    = 2L   # theta = mu * (1 + beta * cov)
 
-# Two-character separator used to build / parse reversible combination names.
-# Must not appear in any covariate name or category label.
+# Combination name encoding (cov=cat pairs joined by "::").
 combinationSep = "::"
 
 #' Extract the number of occasions from IOV covariate sequences.
@@ -171,7 +245,8 @@ getOccasionsFromIOVCovariates = function( modelCovariates ) {
 #' \enumerate{
 #'   \item If any \code{CategoricalCovariateWithIOV} is present, use the common
 #'         sequence length (e.g. 2, 3, or 4 periods).
-#'   \item Else if any parameter has \code{gamma > 0} (random IOV), use 2 occasions.
+#'   \item Else if any parameter has \code{gamma > 0} (random IOV), default to 2
+#'         occasions; set \code{numberOfOccasions >= 2} on the project for more periods.
 #'   \item Else use 1 occasion.
 #' }
 #'
@@ -196,12 +271,49 @@ inferNumberOfOccasions = function( modelCovariates = list(), modelParameters = l
   1L
 }
 
+#' Resolve \code{numberOfOccasions} for a project: infer when unset, else validate.
+#' @param userN Value from \code{Evaluation}/\code{Optimization} (\code{NA} = infer).
+#' @param modelCovariates List of covariate objects.
+#' @param modelParameters List of \code{ModelParameter} objects.
+#' @return Integer number of occasions.
+#' @keywords internal
+resolveNumberOfOccasions = function( userN, modelCovariates, modelParameters ) {
+  expected = inferNumberOfOccasions( modelCovariates, modelParameters )
+  if ( length( userN ) == 0L || ( length( userN ) == 1L && is.na( userN ) ) )
+    return( expected )
+  if ( length( userN ) != 1L )
+    stop( "numberOfOccasions must be a single integer.", call. = FALSE )
+  userN = as.integer( userN )
+  if ( userN < 1L )
+    stop( "numberOfOccasions must be >= 1.", call. = FALSE )
+
+  has_iov_cov = length(
+    .filterCovariatesByClass( modelCovariates, "CategoricalCovariateWithIOV" )
+  ) > 0L
+  gamma_vals = map_dbl( modelParameters, function( p ) {
+    g = prop( p, "gamma" )
+    if ( length( g ) == 0L || is.na( g ) ) 0 else g
+  })
+  gamma_only_iov = !has_iov_cov && any( gamma_vals > 0, na.rm = TRUE )
+
+  if ( gamma_only_iov ) {
+    if ( userN < 2L )
+      stop( "numberOfOccasions must be >= 2 when gamma (IOV) is set.", call. = FALSE )
+    return( userN )
+  }
+
+  if ( userN != expected )
+    stop(
+      sprintf(
+        "numberOfOccasions (%d) is inconsistent with covariates/IOV (expected %d).",
+        userN, expected
+      ),
+      call. = FALSE
+    )
+  userN
+}
+
 #' Occasion count for a built \code{Model} object.
-#'
-#' Uses the value stored on the model when set (e.g. temporary models in the
-#' gradient core force \code{numberOfOccasions = 1}); otherwise calls
-#' \code{inferNumberOfOccasions()}.
-#'
 #' @param model A \code{Model} object.
 #' @return Integer number of occasions.
 #' @keywords internal
@@ -229,26 +341,44 @@ usesCovariateOccasionStructure = function( model ) {
   getNumberOfOccasionsForModel( model ) > 1L
 }
 
-# Split a flat covariate list by short class name (strips the "PFIM::" prefix).
+# Split covariates by short class name (strip "PFIM::" prefix).
+#' Split covariates by unqualified class name.
+#' @param covariates List of covariate objects.
+#' @return Named list grouping covariates by short class.
+#' @noRd
+#' @keywords internal
 .splitCovariatesByClass = function( covariates ) {
   if ( length( covariates ) == 0L ) return( list() )
   split( covariates, map_chr( covariates, ~ str_remove( pluck( class( .x ), 1L ), "^PFIM::" ) ) )
 }
 
-# Return only covariates matching a given short class name.
+#' Filter covariates by a short class label.
+#' @param covariates List of covariate objects.
+#' @param shortClass Character scalar class key without package prefix.
+#' @return List of covariates matching \code{shortClass}.
+#' @noRd
+#' @keywords internal
 .filterCovariatesByClass = function( covariates, shortClass ) {
   pluck( .splitCovariatesByClass( covariates ), shortClass, .default = list() )
 }
 
-# Builds a fully reversible combination name from a named list of
-# (covariateName -> categoryOrSequenceLabel) pairs.
-# Uses combinationSep ("::") and "=" so that underscores inside names are safe.
+# covName=categoryOrSequence tokens, joined by combinationSep.
+#' Encode covariate combination parts into one name.
+#' @param parts Named list of \code{covariate=value} entries.
+#' @return Character scalar combination name.
+#' @noRd
+#' @keywords internal
 .encodeCombinationName = function( parts ) {
   if ( length( parts ) == 0L ) return( "Reference" )
   paste( names( parts ), unlist( parts ), sep = "=", collapse = combinationSep )
 }
 
 # Inverse of .encodeCombinationName.
+#' Decode a combination name into covariate-value pairs.
+#' @param combinationName Character scalar generated by \code{.encodeCombinationName()}.
+#' @return Named list of decoded covariate values.
+#' @noRd
+#' @keywords internal
 .decodeCombinationName = function( combinationName ) {
   if ( combinationName == "Reference" ) return( list() )
 
@@ -264,8 +394,12 @@ usesCovariateOccasionStructure = function( model ) {
   )
 }
 
-# Recovers the full covariate-value mapping for a combination name, injecting
-# reference levels (first category / first sequence) for absent covariates.
+# fill reference categories for covariates omitted from the combination name.
+#' Parse combination name and fill missing reference values.
+#' @param combinationName Character scalar combination identifier.
+#' @param modelCovariates List of covariate objects used to infer defaults.
+#' @return Named list of covariate values including references.
+#' @keywords internal
 parseCombinationName = function( combinationName, modelCovariates ) {
   decoded     = .decodeCombinationName( combinationName )
   covNames    = map_chr( modelCovariates, ~ prop( .x, "name" ) )
@@ -275,8 +409,9 @@ parseCombinationName = function( combinationName, modelCovariates ) {
     if ( S7::S7_inherits( cov, CategoricalCovariate ) ) {
       prop( cov, "categories" )[[1L]]
     } else {
-      seqs = prop( cov, "sequences" )
-      if ( is.null( names( seqs ) ) ) "sequence_1" else names( seqs )[[1L]]
+      seqs     = prop( cov, "sequences" )
+      seqNames = names( seqs ) %||% paste0( "sequence_", seq_along( seqs ) )
+      seqNames[[1L]]
     }
   }) |> set_names( covNames[ missingMask ] )
 

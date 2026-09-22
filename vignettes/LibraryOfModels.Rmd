@@ -44,7 +44,7 @@ font-size: 40pt;
 
 ## Compartmental models and parameters
 
-Six parameters are common to one, two or three compartment models:
+Six parameters are common to one- and two-compartment models:
 
 + $V$ or $V_1$, the volume of distribution in the central compartment
 + $k$, the elimination rate constant
@@ -348,8 +348,8 @@ C\left(t\right)=
 
 
 ```{r class.source= ".boxModel", eval= FALSE}
-Linear2InfusionSingleDose_kk12k21V,
-Linear2InfusionSingleDose_ClQV1V2,
+Linear2InfusionSingleDose_kk12k21V
+Linear2InfusionSingleDose_ClQV1V2
 ```
 
 + steady state 
@@ -500,7 +500,7 @@ $$	\begin {equation}
 \end {equation}	$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-MichaelisMenten1InfusionSingleDose_VmKmk12k21V1V2
+MichaelisMenten1InfusionSingleDose_VmKmV
 ```
 
 + multiple doses
@@ -545,11 +545,12 @@ $$			\begin {equation}
 
 
 ```{r class.source= ".boxModel", eval= FALSE}
-MichaelisMenten1FirstOrderSingleDose_kaVmKmV,
-MichaelisMenten2FirstOrderSingleDose_kaVmKmk12k21V1V2
+MichaelisMenten1FirstOrderSingleDose_kaVmKmV
 ```
 
 ### Two-compartment models
+
+The central volume is $V_1$ (catalogue suffix `V1V2`), not $V$.
 
 #### Intravenous bolus
 
@@ -561,10 +562,10 @@ $$
 \text{Initial }&\text{conditions:	 }\begin{cases}
 C_1\left(t\right)= &0 \text{	for $t<t_D$}\\[0.05cm]
 C_2\left(t\right)= &0 \text{	for $t\leq t_D$}\\[0.05cm]
-C_1\left(t_{D}\right)=&{\frac{D}{V}}\\[0.05cm]
+C_1\left(t_{D}\right)=&{\frac{D}{V_1}}\\[0.05cm]
 \end{cases}\\[0.15cm]
-&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V}C_2\\[0.2cm]
-&\frac{dC_{2}}{dt}=\frac{ k_{12 }V}{V_2}C_1-k_{21}C_2	\\
+&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V_1}C_2\\[0.2cm]
+&\frac{dC_{2}}{dt}=\frac{ k_{12 }V_1}{V_2}C_1-k_{21}C_2	\\
 \end{aligned}
 \end {equation}$$
 
@@ -583,10 +584,10 @@ $$	\begin {equation}
 C_1\left(t\right)=&0 \text{	for $t<t_D$}\\[0.05cm]
 C_2\left(t\right)=&0 \text{	for $t\leq t_D$}\\[0.05cm]
 \end{cases}\\[0.15cm]
-&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V}C_2+input\\[0.2cm]
-&\frac{dC_{2}}{dt}=\frac{ k_{12 }V}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V_1}C_2+input\\[0.2cm]
+&\frac{dC_{2}}{dt}=\frac{ k_{12 }V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
 &input\left(t\right)=\begin{cases}
-{\frac{D}{Tinf}\frac{1}{V}} &\text{if $0\leq t-t_{D}\leq Tinf$}\\[0.05cm]
+{\frac{D}{Tinf}\frac{1}{V_1}} &\text{if $0\leq t-t_{D}\leq Tinf$}\\[0.05cm]
 0 &\text{if not.}
 \end{cases}
 \end{aligned}
@@ -600,11 +601,11 @@ $$\begin {equation}
 C_1\left(t\right)=&0 \text{	for $t<t_{D_{1}}$}\\[0.05cm]
 C_2\left(t\right)=&0 \text{	for $t\leq t_{D_{1}}$}\\[0.05cm]
 \end{cases}\\[0.15cm]
-&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V}C_2 + input\\[0.2cm]
-&\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21 }V_2}{V_1}C_2 + input\\[0.2cm]
+&\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
 &input\left(t\right)=
 \begin{cases}
-{\frac{D_{i}}{Tinf_{i}}\frac{1}{V}} &\text{if $0\leq t-t_{D_{i}}\leq Tinf_{i}$,}\\[0.05cm]
+{\frac{D_{i}}{Tinf_{i}}\frac{1}{V_1}} &\text{if $0\leq t-t_{D_{i}}\leq Tinf_{i}$,}\\[0.05cm]
 0 &\text{if not.}
 \end{cases}
 \end{aligned}
@@ -626,9 +627,9 @@ $$
 C_1\left(t\right)=&0 \text{	for $t< t_D$}\\[0.05cm]
 C_2\left(t\right)=&0 \text{	for $t\leq t_D$}\\
 \end{cases}\\[0.15cm]
-&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21}V_2}{V}C_2+input\\[0.2cm]
-&\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
-&input\left(t\right)=\frac{D}{V}k_ae^{-k_a\left(t-t_D\right)}
+&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21}V_2}{V_1}C_2+input\\[0.2cm]
+&\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&input\left(t\right)=\frac{D}{V_1}k_ae^{-k_a\left(t-t_D\right)}
 \end{aligned}
 \end {equation}$$
 
@@ -640,9 +641,9 @@ $$\begin {equation}
 C_1\left(t\right)=&0 \text{	for $t< t_{D_{1}}$}\\[0.05cm]
 C_2\left(t\right)=&0 \text{	for $t\leq t_{D_{1}}$}\\
 \end{cases}\\[0.15cm]
-&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21}V_2}{V}C_2+input\\[0.2cm]
-&\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
-&input\left(t\right)=\sum^{n}_{i=1}\frac{D_i}{V}k_ae^{-k_a\left(t-t_{D_{i}}\right)}
+&\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{ k_{21}V_2}{V_1}C_2+input\\[0.2cm]
+&\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&input\left(t\right)=\sum^{n}_{i=1}\frac{D_i}{V_1}k_ae^{-k_a\left(t-t_{D_{i}}\right)}
 \end{aligned}
 \end {equation}	$$	
 
@@ -740,30 +741,31 @@ ImmediateDrugImax_S0ImaxC50_gamma
 ```
 + full $I_{max}$ model
 $$\begin{equation}
-A\left(t\right)=-\frac{C\left(t\right)}{C\left(t\right)+C_{50}}
+A\left(t\right)=1-\frac{C\left(t\right)}{C\left(t\right)+C_{50}}
 \end{equation}$$	
 
+```{r class.source= ".boxModel", eval= FALSE}
+ImmediateDrugFullImax_S0C50
+```
 
 + sigmoïd full $I_{max}$ model
 $$\begin{equation}
-A\left(t\right)=-\frac{C\left(t\right)^{\gamma}}{C\left(t\right)^{\gamma}+C_{50}^{\gamma}}
+A\left(t\right)=1-\frac{C\left(t\right)^{\gamma}}{C\left(t\right)^{\gamma}+C_{50}^{\gamma}}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-ImmediateDrugImax_S0ImaxC50_gamma
+ImmediateDrugSigmoidFullImax_S0C50gamma
 ```
 
 ### Baseline/disease models {#baselinediseasemodel}
 
-+ null baseline
++ null baseline (no extra disease term: \(E=A\))
 
 $$\begin{equation}
 S\left(t\right)=0
 \end{equation}$$
 
-```{r class.source= ".boxModel", eval= FALSE}
-ImmediateBaselineConstant_S0
-```
+There is no library entry for \(S=0\); combine a drug-action model alone.
 
 + constant baseline with no disease progression
 
@@ -788,7 +790,7 @@ ImmediateBaselineLinear_S0kprog
 + exponential disease increase
 
 $$\begin{equation}
-S\left(t\right)=S_{0}e^{-k_{prog}t}
+S\left(t\right)=S_{0}\left(1-e^{-k_{prog}t}\right)
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
@@ -798,7 +800,7 @@ ImmediateBaselineExponentialincrease_S0kprog
 + exponential disease decrease
 
 $$\begin{equation}
-S\left(t\right)=S_{0}\left(1-e^{-k_{prog}t}\right)
+S\left(t\right)=S_{0}e^{-k_{prog}t}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
@@ -841,7 +843,7 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverRinSigmoidEmax_RinEmaxCC50koutE
+TurnoverRinSigmoidEmax_RinEmaxCC50koutEgamma
 ```
 
 + $I_{max}$ model
@@ -851,7 +853,7 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverRinFullImax_RinCC50koutE
+TurnoverRinImax_RinImaxCC50koutE
 ```
 
 + sigmoïd $I_{max}$ model
@@ -861,7 +863,7 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverRinImax_RinImaxCC50koutE
+TurnoverRinSigmoidImax_RinImaxCC50koutEgamma
 ```
 
 + full $I_{max}$ model
@@ -871,7 +873,7 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverRinSigmoidImax_RinImaxCC50koutE
+TurnoverRinFullImax_RinCC50koutE
 ```
 
 + sigmoïd full $I_{max}$ model
@@ -881,7 +883,7 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverRinFullImax_RinCC50koutE
+TurnoverRinSigmoidFullImax_RinCC50koutEgamma
 ```
 
 ### Models with impact on the output $(k_{out})$
@@ -938,5 +940,5 @@ $$\begin{equation}
 \end{equation}$$
 
 ```{r class.source= ".boxModel", eval= FALSE}
-TurnoverkoutSigmoidFullImax_RinCC50koutE
+TurnoverkoutSigmoidFullImax_RinCC50koutEgamma
 ```

@@ -2,7 +2,17 @@
 % Please edit documentation in R/Fim.R
 \name{Dcriterion}
 \alias{Dcriterion}
-\title{D-criterion from a Fisher information matrix}
-\description{
-D-criterion from a Fisher information matrix
+\title{D-criterion}
+\value{
+Numeric D-optimality criterion value.
 }
+\description{
+D-criterion
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+PFIM:::Dcriterion(prop(ev, "fim"))
+}
+}
+\keyword{internal}

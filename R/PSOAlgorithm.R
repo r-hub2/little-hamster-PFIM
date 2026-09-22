@@ -1,162 +1,159 @@
 #' @title PSOAlgorithm
 #' @description
-#' Particle Swarm Optimization for sampling-time search (Rcpp kernel in \code{src/Psokernel.cpp}).
-#' @param maxIteration Numeric: the maxIteration.
-#' @param populationSize Numeric: the populationSize.
-#' @param seed Numeric: the seed.
-#' @param personalLearningCoefficient Numeric: the personalLearningCoefficient.
-#' @param globalLearningCoefficient Numeric: the globalLearningCoefficient.
-#' @param showProcess Logical: the showProcess.
+#' Particle Swarm Optimization for sampling-time search (Rcpp kernel in \code{src/PSOKernel.cpp}).
+#' Pass \code{maxIteration}, \code{populationSize}, \code{seed}, and learning coefficients
+#' via \code{optimizerParameters} on \code{\link{Optimization}}.
+#' Search starts from each outcome's \code{initialSamplings} (reported initial design);
+#' \code{seed} controls swarm exploration after that start.
+#' Optional \code{tolerance} (default \code{0}, stall stop disabled ->
+#' \code{converged = NA}) and \code{stallIterations}
+#' (default \code{5}) enable early stopping when \code{tolerance > 0}.
+#' @param optimizerOutputs List filled by \code{optimizeDesign()} (optimal arms, etc.).
+#' @return A \code{PSOAlgorithm} specification object.
+#' @examples
+#' \dontrun{
+#' vignette("Example02")
+#' }
 #' @include Optimization.R
 #' @export
 
 PSOAlgorithm = new_class( "PSOAlgorithm", package = "PFIM",
-
-                          properties = list( maxIteration = new_property(class_double, default = numeric(0)),
-                                             populationSize = new_property(class_double, default = numeric(0)),
-                                             seed = new_property(class_double, default = numeric(0)),
-                                             personalLearningCoefficient = new_property(class_double, default = numeric(0)),
-                                             globalLearningCoefficient = new_property(class_double, default = numeric(0)),
-                                             showProcess = new_property(class_logical, default = FALSE ) ) )
+                          properties = list(
+                            optimizerOutputs = new_property( class_list, default = list() )
+                          ) )
 S4_register( PSOAlgorithm )
 
 #' Particle Swarm Optimization kernel (Rcpp).
 #'
-#' Compiled implementation in \code{src/Psokernel.cpp}. FIM evaluation uses
+#' Compiled implementation in \code{src/PSOKernel.cpp}. R<->C++ contract:
+#' \code{windows_list} length equals \code{length(initial_pos)};
+#' \code{sorting_groups} are 1-based index vectors; FIM evaluation uses
 #' \code{eval_fitness} (scalar fallback) and \code{eval_fitness_batch}
-#' (one matrix per swarm step).
+#' (preferred: one matrix per swarm step). \code{sample_valid_pos} reseeds
+#' particles that leave the feasible set.
 #'
 #' @name pso_optimize_Rcpp
+#' @return A list of optimization results.
 #' @keywords internal
 NULL
 
-#' Search for a D-optimal sampling design
+#' PSO continuous D-optimal design (delegates to multi-design driver).
+#'
+#' @param optimizationObject An \code{\link{Optimization}} project.
+#' @param optimizationAlgorithm A \code{PSOAlgorithm} instance.
+#' @return Updated \code{Optimization} after optimizing each design in turn.
 #' @name optimizeDesign
-#' @export
+#' @keywords internal
 
 method( optimizeDesign, list( Optimization, PSOAlgorithm ) ) = function( optimizationObject, optimizationAlgorithm ) {
+  .pfimContinuousOptimizeDesigns(
+    optimizationObject,
+    optimizationAlgorithm,
+    .optimizePSOOneDesign
+  )
+}
 
-  # Cache scope tied to this optimization object for the whole PSO run.
-  .pfimFimCacheBegin( optimizationObject )
+#' Run PSO on a single design: flatten sampling windows, call C++ swarm, rebuild arms.
+#'
+#' Sets the RNG from \code{optimizerParameters$seed} and restores
+#' \code{.Random.seed} on exit (\code{NULL} seed leaves the stream unchanged).
+#' Fitness is \code{1/D} via R callbacks; invalid flat positions receive a large penalty.
+#' @param optimizationObject Parent \code{Optimization}.
+#' @param optimizationAlgorithm \code{PSOAlgorithm} instance (outputs filled here).
+#' @return List with optimal arms / design evaluation pieces for the driver.
+#' @noRd
+#' @keywords internal
+.optimizePSOOneDesign = function( optimizationObject, optimizationAlgorithm ) {
+
   optimizerParameters = projectProp( optimizationObject, "optimizerParameters" )
-  set.seed( optimizerParameters$seed )
+  restore_seed = .pfimLocalSeed( optimizerParameters$seed )
+  on.exit( restore_seed(), add = TRUE )
 
-  design = pluck( projectProp( optimizationObject, "designs" ), 1L )
-  checkValiditySamplingConstraint( design )
-  design = setSamplingConstraintForOptimization( design )
+  prep = .pfimPrepareContinuousDesign( optimizationObject )
+  design = prep$design
+  arms   = prep$arms
 
-  arms = prop( design, "arms" )
-
-  initialArms = map( arms, function( arm ) {
-    samplingConstraints = prop( arm, "samplingTimesConstraints" )
-    newSamplings = map( samplingConstraints, ~ generateSamplingsFromSamplingConstraints( .x ) ) |>
-      set_names( map_chr( samplingConstraints, ~ prop( .x, "outcome" ) ) )
-    updatedTimes = map( prop( arm, "samplingTimes" ), function( st ) {
-      outcome = prop( st, "outcome" )
-      if ( outcome %in% names( newSamplings ) )
-        prop( st, "samplings" ) = newSamplings[[ outcome ]]
-      st
-    })
-    prop( arm, "samplingTimes" ) = updatedTimes
-    arm
-  })
-  prop( design, "arms" ) = initialArms
+  initialDesign = .pfimCloneS7( design )
 
   layout = .buildFlatSamplingLayout( design )
+  evalTemplate = .evaluationFromOptimization( optimizationObject, initialDesign, name = "" )
+  evalCtx      = .pfimMetaheuristicEvalContext( evalTemplate, design, arms )
 
-  evalObjTemplate = .evaluationFromOptimization( optimizationObject, design, name = "" )
-
+  # Single validity gate: .pfimMetaheuristicFitnessBatch(layout=).
   eval_fitness = function( flat_pos ) {
-    if ( !.isFlatValid( layout, flat_pos ) )
-      return( .metaheuristicFitnessPenalty )
-    .pfimMetaheuristicFitness( evalObjTemplate, design, arms, flat_pos )
+    .pfimMetaheuristicFitnessBatch(
+      evalTemplate, design, arms,
+      matrix( as.numeric( flat_pos ), nrow = 1L ),
+      layout = layout, ctx = evalCtx
+    )
   }
 
-  # Batch path: C++ passes the full swarm matrix after each velocity update.
   eval_fitness_batch = function( pos_matrix ) {
-    pos_matrix = as.matrix( pos_matrix )
-    n = nrow( pos_matrix )
-    if ( n == 0L ) return( numeric( 0 ) )
-    costs = .pfimMetaheuristicFitnessBatch(
-      evalObjTemplate, design, arms, pos_matrix, layout = layout
+    .pfimMetaheuristicFitnessBatch(
+      evalTemplate, design, arms, as.matrix( pos_matrix ),
+      layout = layout, ctx = evalCtx
     )
-    invalid = !vapply(
-      seq_len( n ),
-      function( i ) .isFlatValid( layout, pos_matrix[ i, ] ),
-      logical( 1L )
-    )
-    costs[ invalid ] = .metaheuristicFitnessPenalty
-    costs
   }
-
-  sample_valid_pos = function() .sampleFlatFromConstraints( layout )
 
   phi1 = optimizerParameters$personalLearningCoefficient
   phi2 = optimizerParameters$globalLearningCoefficient
   phi  = phi1 + phi2
-
-  if ( phi <= 4 )
-    stop( sprintf(
-      paste0( "PSOAlgorithm: personalLearningCoefficient + globalLearningCoefficient must be > 4\n",
-              "for the constriction factor to guarantee convergence (Clerc & Kennedy 2002).\n",
-              "Current value: %.4f. Typical default: phi1 = phi2 = 2.05 (phi = 4.1)." ),
-      phi
-    ), call. = FALSE )
-
+  # phi > 4 validated at Optimization() construction; constriction needs phi*(phi-4)>0.
+  # Clerc-Kennedy constriction keeps velocities from exploding on the flat vector.
   phi_inner = phi * ( phi - 4 )
-  if ( phi_inner <= 0 )
-    stop(
-      "PSOAlgorithm: phi * (phi - 4) must be positive for the constriction factor.",
-      call. = FALSE
-    )
+  constriction = 2 / abs( 2 - phi - sqrt( phi_inner ) )
 
-  # Clerc & Kennedy constriction; phi1 + phi2 must exceed 4 (checked above).
-  constrictionFactor = 2 / abs( 2 - phi - sqrt( phi_inner ) )
-
+  # Pass flat layout + R fitness callbacks; C++ owns the swarm loop only.
   res_cpp = pso_optimize_Rcpp(
-    n_pop_in         = as.integer( optimizerParameters$populationSize ),
-    max_iter         = as.integer( optimizerParameters$maxIteration ),
-    initial_pos      = layout$initial_flat,
-    windows_list     = layout$windows_list,
-    sorting_groups   = layout$sorting_groups,
-    phi1             = phi1,
-    phi2             = phi2,
-    constriction     = constrictionFactor,
-    show_process     = optimizerParameters$showProcess,
+    n_pop_in           = as.integer( optimizerParameters$populationSize ),
+    max_iter           = as.integer( optimizerParameters$maxIteration ),
+    initial_pos        = layout$initial_flat,
+    windows_list       = layout$windows_list,
+    sorting_groups     = layout$sorting_groups,
+    phi1               = phi1,
+    phi2               = phi2,
+    constriction       = constriction,
+    show_process       = optimizerParameters$showProcess,
     eval_fitness       = eval_fitness,
     eval_fitness_batch = eval_fitness_batch,
-    sample_valid_pos   = sample_valid_pos
+    sample_valid_pos   = function() .sampleFlatFromConstraints( layout ),
+    ftol               = optimizerParameters$tolerance %||% 0,
+    stall_iterations   = as.integer( optimizerParameters$stallIterations %||% 5L )
   )
 
-  best_flat_pos = res_cpp$globalBestDesign
+  finalArms     = .applyFlatToArms( res_cpp$globalBestDesign, arms )
+  optimalDesign = .pfimOptimalDesignFrom( initialDesign, finalArms )
 
-  finalArms = .applyFlatToArms( best_flat_pos, arms )
-
-  optimalDesign = design
-  prop( optimalDesign, "arms" ) = finalArms
-
-  prop( optimizationObject, "optimisationDesign" ) = list(
-    evaluationInitialDesign = .pfimRunOptimizationEvaluation( optimizationObject, design ),
-    evaluationOptimalDesign = .pfimRunOptimizationEvaluation( optimizationObject, optimalDesign )
+  tol = optimizerParameters$tolerance %||% 0
+  .pfimWarnIfNotConverged(
+    "PSOAlgorithm", tol, res_cpp$converged,
+    extra = paste0(
+      " within maxIteration = ", optimizerParameters$maxIteration,
+      " (tolerance = ", tol, ")"
+    )
   )
-  prop( optimizationObject, "optimisationAlgorithmOutputs" ) = list(
-    "optimizationAlgorithm" = optimizationAlgorithm,
-    "optimalArms"           = finalArms
+  algoOut = .pfimContinuousAlgoOutputs(
+    list(
+      globalBestCost = res_cpp$globalBestCost,
+      converged      = res_cpp$converged,
+      iterations     = res_cpp$iterations,
+      improved       = res_cpp$improved
+    ),
+    tolerance = tol
   )
 
-  optimizationObject
+  .pfimStoreContinuousOptimization(
+    optimizationObject, optimizationAlgorithm,
+    initialDesign, optimalDesign,
+    optimizerOutputs = c( list( optimalArms = finalArms ), algoOut ),
+    finalArms = finalArms
+  )
 }
 
 #' Constraint tables for optimization reports
 #' @name constraintsTableForReport
-#' @export
+#' @keywords internal
 
-method( constraintsTableForReport, PSOAlgorithm ) = function( optimizationAlgorithm, arms  )
-{
-  armsConstraints = map( pluck( arms, 1 ) , ~ getArmConstraints( .x, optimizationAlgorithm ) )
-  armsConstraints = .constraintsArmsTable( armsConstraints )
-  colnames( armsConstraints ) = c( "Arms name" , "Number of subjects", "Outcome", "Initial samplings", "Samplings windows", "Number of times by windows","Min sampling" )
-  armsConstraintsTable = kbl( armsConstraints, align = c( "l","c","c","c","c","c","c") ) |>
-    kable_styling( bootstrap_options = c(  "hover" ), full_width = FALSE, position = "center", font_size = 13 )
-  return( armsConstraintsTable )
+method( constraintsTableForReport, PSOAlgorithm ) = function( optimizationAlgorithm, arms ) {
+  .pfimConstraintsTableContinuous( optimizationAlgorithm, arms )
 }

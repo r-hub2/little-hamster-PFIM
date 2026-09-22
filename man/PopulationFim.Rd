@@ -11,23 +11,31 @@ PopulationFim(
   SEAndRSE = list(),
   condNumberFixedEffects = 0,
   condNumberVarianceEffects = 0,
-  shrinkage = numeric(0)
+  shrinkage = numeric(0),
+  singularFim = FALSE
 )
 }
 \arguments{
-\item{fisherMatrix}{Labelled n x n FIM matrix.}
+\item{fisherMatrix}{Labelled FIM matrix.}
 
 \item{fixedEffects}{Fixed-effects sub-block.}
 
 \item{varianceEffects}{Variance-effects sub-block.}
 
-\item{SEAndRSE}{List of data frames: SE, RSE, and combined SE/RSE.}
+\item{SEAndRSE}{List with \code{SE}, \code{RSE}, and combined tables.}
 
 \item{condNumberFixedEffects}{Condition number of the fixed-effects block.}
 
 \item{condNumberVarianceEffects}{Condition number of the variance-effects block.}
 
-\item{shrinkage}{Named numeric vector of Bayesian shrinkage (percent) per parameter.}
+\item{shrinkage}{Named shrinkage (percent) per parameter (Bayesian FIM).}
+
+\item{singularFim}{\code{TRUE} when SE/RSE used a pseudo-inverse (singular FIM).
+Set in \code{.fimStoreEvaluationResult} from \code{.fimBuildSeAndRse}; D-criterion
+/ log-det still use the raw matrix (may be 0 / \code{-Inf} when singular).}
+}
+\value{
+A \code{PopulationFim} object (filled by \code{run()}).
 }
 \description{
 Population Fisher information matrix for nonlinear mixed-effects models.
@@ -37,4 +45,10 @@ The population FIM has fixed-effects (\eqn{\mu}, \eqn{\beta}) and variance-effec
 (\eqn{\omega^2}, \eqn{\gamma^2}, \eqn{\sigma}) blocks:
 \deqn{M_P = \mathrm{bdiag}(N \cdot M_\mu,\; N \cdot M_\lambda)}
 where \eqn{N} is the arm size and \eqn{M_\mu = G_\mu^\top V^{-1} G_\mu}.
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+S7::S7_inherits(prop(ev, "fim"), PopulationFim)
+}
 }

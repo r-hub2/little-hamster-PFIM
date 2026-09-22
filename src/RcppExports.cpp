@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // FedorovWynnAlgorithm_Rcpp
-Rcpp::List FedorovWynnAlgorithm_Rcpp(Rcpp::List protocols, IntegerVector ndimen, IntegerVector nbprot, IntegerVector numprot, NumericVector freq, IntegerVector nbdata, NumericVector vectps, NumericVector fisher, IntegerVector error, IntegerVector protdep, NumericVector freqdep, bool show_process);
-RcppExport SEXP _PFIM_FedorovWynnAlgorithm_Rcpp(SEXP protocolsSEXP, SEXP ndimenSEXP, SEXP nbprotSEXP, SEXP numprotSEXP, SEXP freqSEXP, SEXP nbdataSEXP, SEXP vectpsSEXP, SEXP fisherSEXP, SEXP errorSEXP, SEXP protdepSEXP, SEXP freqdepSEXP, SEXP show_processSEXP) {
+Rcpp::List FedorovWynnAlgorithm_Rcpp(Rcpp::List protocols, IntegerVector ndimen, IntegerVector nbprot, IntegerVector numprot, NumericVector freq, IntegerVector nbdata, NumericVector vectps, NumericVector fisher, IntegerVector error, IntegerVector protdep, NumericVector freqdep, bool show_process, double delta);
+RcppExport SEXP _PFIM_FedorovWynnAlgorithm_Rcpp(SEXP protocolsSEXP, SEXP ndimenSEXP, SEXP nbprotSEXP, SEXP numprotSEXP, SEXP freqSEXP, SEXP nbdataSEXP, SEXP vectpsSEXP, SEXP fisherSEXP, SEXP errorSEXP, SEXP protdepSEXP, SEXP freqdepSEXP, SEXP show_processSEXP, SEXP deltaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -29,7 +29,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< IntegerVector >::type protdep(protdepSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type freqdep(freqdepSEXP);
     Rcpp::traits::input_parameter< bool >::type show_process(show_processSEXP);
-    rcpp_result_gen = Rcpp::wrap(FedorovWynnAlgorithm_Rcpp(protocols, ndimen, nbprot, numprot, freq, nbdata, vectps, fisher, error, protdep, freqdep, show_process));
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(FedorovWynnAlgorithm_Rcpp(protocols, ndimen, nbprot, numprot, freq, nbdata, vectps, fisher, error, protdep, freqdep, show_process, delta));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -52,8 +53,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // pgbo_optimize_Rcpp
-List pgbo_optimize_Rcpp(NumericVector initial_pos, List sorting_groups, int max_iteration, int N, double mute_effect, int purge_iteration, double fit_base, int max_attempts, bool show_process, Function eval_d, Function check_valid_group);
-RcppExport SEXP _PFIM_pgbo_optimize_Rcpp(SEXP initial_posSEXP, SEXP sorting_groupsSEXP, SEXP max_iterationSEXP, SEXP NSEXP, SEXP mute_effectSEXP, SEXP purge_iterationSEXP, SEXP fit_baseSEXP, SEXP max_attemptsSEXP, SEXP show_processSEXP, SEXP eval_dSEXP, SEXP check_valid_groupSEXP) {
+List pgbo_optimize_Rcpp(NumericVector initial_pos, List sorting_groups, int max_iteration, int N, double mute_effect, int purge_iteration, double fit_base, int max_attempts, double cauchy_prob, bool show_process, Function eval_d, Function check_valid_group, double ftol, int stall_iterations);
+RcppExport SEXP _PFIM_pgbo_optimize_Rcpp(SEXP initial_posSEXP, SEXP sorting_groupsSEXP, SEXP max_iterationSEXP, SEXP NSEXP, SEXP mute_effectSEXP, SEXP purge_iterationSEXP, SEXP fit_baseSEXP, SEXP max_attemptsSEXP, SEXP cauchy_probSEXP, SEXP show_processSEXP, SEXP eval_dSEXP, SEXP check_valid_groupSEXP, SEXP ftolSEXP, SEXP stall_iterationsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -65,16 +66,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type purge_iteration(purge_iterationSEXP);
     Rcpp::traits::input_parameter< double >::type fit_base(fit_baseSEXP);
     Rcpp::traits::input_parameter< int >::type max_attempts(max_attemptsSEXP);
+    Rcpp::traits::input_parameter< double >::type cauchy_prob(cauchy_probSEXP);
     Rcpp::traits::input_parameter< bool >::type show_process(show_processSEXP);
     Rcpp::traits::input_parameter< Function >::type eval_d(eval_dSEXP);
     Rcpp::traits::input_parameter< Function >::type check_valid_group(check_valid_groupSEXP);
-    rcpp_result_gen = Rcpp::wrap(pgbo_optimize_Rcpp(initial_pos, sorting_groups, max_iteration, N, mute_effect, purge_iteration, fit_base, max_attempts, show_process, eval_d, check_valid_group));
+    Rcpp::traits::input_parameter< double >::type ftol(ftolSEXP);
+    Rcpp::traits::input_parameter< int >::type stall_iterations(stall_iterationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(pgbo_optimize_Rcpp(initial_pos, sorting_groups, max_iteration, N, mute_effect, purge_iteration, fit_base, max_attempts, cauchy_prob, show_process, eval_d, check_valid_group, ftol, stall_iterations));
     return rcpp_result_gen;
 END_RCPP
 }
 // pso_optimize_Rcpp
-List pso_optimize_Rcpp(int n_pop_in, int max_iter, arma::rowvec initial_pos, List windows_list, List sorting_groups, double phi1, double phi2, double constriction, bool show_process, Function eval_fitness, Nullable<Function> sample_valid_pos, Nullable<Function> eval_fitness_batch);
-RcppExport SEXP _PFIM_pso_optimize_Rcpp(SEXP n_pop_inSEXP, SEXP max_iterSEXP, SEXP initial_posSEXP, SEXP windows_listSEXP, SEXP sorting_groupsSEXP, SEXP phi1SEXP, SEXP phi2SEXP, SEXP constrictionSEXP, SEXP show_processSEXP, SEXP eval_fitnessSEXP, SEXP sample_valid_posSEXP, SEXP eval_fitness_batchSEXP) {
+List pso_optimize_Rcpp(int n_pop_in, int max_iter, arma::rowvec initial_pos, List windows_list, List sorting_groups, double phi1, double phi2, double constriction, bool show_process, Function eval_fitness, Nullable<Function> sample_valid_pos, Nullable<Function> eval_fitness_batch, double ftol, int stall_iterations);
+RcppExport SEXP _PFIM_pso_optimize_Rcpp(SEXP n_pop_inSEXP, SEXP max_iterSEXP, SEXP initial_posSEXP, SEXP windows_listSEXP, SEXP sorting_groupsSEXP, SEXP phi1SEXP, SEXP phi2SEXP, SEXP constrictionSEXP, SEXP show_processSEXP, SEXP eval_fitnessSEXP, SEXP sample_valid_posSEXP, SEXP eval_fitness_batchSEXP, SEXP ftolSEXP, SEXP stall_iterationsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -90,7 +94,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Function >::type eval_fitness(eval_fitnessSEXP);
     Rcpp::traits::input_parameter< Nullable<Function> >::type sample_valid_pos(sample_valid_posSEXP);
     Rcpp::traits::input_parameter< Nullable<Function> >::type eval_fitness_batch(eval_fitness_batchSEXP);
-    rcpp_result_gen = Rcpp::wrap(pso_optimize_Rcpp(n_pop_in, max_iter, initial_pos, windows_list, sorting_groups, phi1, phi2, constriction, show_process, eval_fitness, sample_valid_pos, eval_fitness_batch));
+    Rcpp::traits::input_parameter< double >::type ftol(ftolSEXP);
+    Rcpp::traits::input_parameter< int >::type stall_iterations(stall_iterationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(pso_optimize_Rcpp(n_pop_in, max_iter, initial_pos, windows_list, sorting_groups, phi1, phi2, constriction, show_process, eval_fitness, sample_valid_pos, eval_fitness_batch, ftol, stall_iterations));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -109,6 +115,144 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type outcomes(outcomesSEXP);
     Rcpp::traits::input_parameter< bool >::type show_process(show_processSEXP);
     rcpp_result_gen = Rcpp::wrap(fun_amoeba_Rcpp(p, y, ftol, itmax, funk, data, outcomes, show_process));
+    return rcpp_result_gen;
+END_RCPP
+}
+// chol_inv_Rcpp
+arma::mat chol_inv_Rcpp(const arma::mat& V);
+RcppExport SEXP _PFIM_chol_inv_Rcpp(SEXP VSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type V(VSEXP);
+    rcpp_result_gen = Rcpp::wrap(chol_inv_Rcpp(V));
+    return rcpp_result_gen;
+END_RCPP
+}
+// safe_solve_Rcpp
+arma::mat safe_solve_Rcpp(const arma::mat& M);
+RcppExport SEXP _PFIM_safe_solve_Rcpp(SEXP MSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type M(MSEXP);
+    rcpp_result_gen = Rcpp::wrap(safe_solve_Rcpp(M));
+    return rcpp_result_gen;
+END_RCPP
+}
+// computeMFVar_Rcpp
+arma::mat computeMFVar_Rcpp(const arma::mat& V_inv, const Rcpp::List& dV_list);
+RcppExport SEXP _PFIM_computeMFVar_Rcpp(SEXP V_invSEXP, SEXP dV_listSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type V_inv(V_invSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type dV_list(dV_listSEXP);
+    rcpp_result_gen = Rcpp::wrap(computeMFVar_Rcpp(V_inv, dV_list));
+    return rcpp_result_gen;
+END_RCPP
+}
+// computeMFVar_mixed_Rcpp
+arma::mat computeMFVar_mixed_Rcpp(const arma::mat& V_inv, const arma::mat& W, const Rcpp::List& dV_full);
+RcppExport SEXP _PFIM_computeMFVar_mixed_Rcpp(SEXP V_invSEXP, SEXP WSEXP, SEXP dV_fullSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type V_inv(V_invSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type dV_full(dV_fullSEXP);
+    rcpp_result_gen = Rcpp::wrap(computeMFVar_mixed_Rcpp(V_inv, W, dV_full));
+    return rcpp_result_gen;
+END_RCPP
+}
+// computePopFimCombo_Rcpp
+arma::mat computePopFimCombo_Rcpp(const arma::mat& gradients, const arma::vec& mu_values, const arma::vec& omega_iiv, const arma::vec& gamma, const arma::mat& error_variance, const Rcpp::IntegerVector& occ_col_widths, const Rcpp::List& sigma_derivatives, bool has_iov);
+RcppExport SEXP _PFIM_computePopFimCombo_Rcpp(SEXP gradientsSEXP, SEXP mu_valuesSEXP, SEXP omega_iivSEXP, SEXP gammaSEXP, SEXP error_varianceSEXP, SEXP occ_col_widthsSEXP, SEXP sigma_derivativesSEXP, SEXP has_iovSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type gradients(gradientsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type mu_values(mu_valuesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type omega_iiv(omega_iivSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type gamma(gammaSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type error_variance(error_varianceSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type occ_col_widths(occ_col_widthsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type sigma_derivatives(sigma_derivativesSEXP);
+    Rcpp::traits::input_parameter< bool >::type has_iov(has_iovSEXP);
+    rcpp_result_gen = Rcpp::wrap(computePopFimCombo_Rcpp(gradients, mu_values, omega_iiv, gamma, error_variance, occ_col_widths, sigma_derivatives, has_iov));
+    return rcpp_result_gen;
+END_RCPP
+}
+// residualErrorDerivatives_Rcpp
+Rcpp::List residualErrorDerivatives_Rcpp(double sigmaInter, double sigmaSlope, bool sigmaInterFixed, bool sigmaSlopeFixed, double cError, const arma::vec& f, int form);
+RcppExport SEXP _PFIM_residualErrorDerivatives_Rcpp(SEXP sigmaInterSEXP, SEXP sigmaSlopeSEXP, SEXP sigmaInterFixedSEXP, SEXP sigmaSlopeFixedSEXP, SEXP cErrorSEXP, SEXP fSEXP, SEXP formSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type sigmaInter(sigmaInterSEXP);
+    Rcpp::traits::input_parameter< double >::type sigmaSlope(sigmaSlopeSEXP);
+    Rcpp::traits::input_parameter< bool >::type sigmaInterFixed(sigmaInterFixedSEXP);
+    Rcpp::traits::input_parameter< bool >::type sigmaSlopeFixed(sigmaSlopeFixedSEXP);
+    Rcpp::traits::input_parameter< double >::type cError(cErrorSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type f(fSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    rcpp_result_gen = Rcpp::wrap(residualErrorDerivatives_Rcpp(sigmaInter, sigmaSlope, sigmaInterFixed, sigmaSlopeFixed, cError, f, form));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pfimCacheHash_Rcpp
+std::string pfimCacheHash_Rcpp(const Rcpp::CharacterVector& parts);
+RcppExport SEXP _PFIM_pfimCacheHash_Rcpp(SEXP partsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::CharacterVector& >::type parts(partsSEXP);
+    rcpp_result_gen = Rcpp::wrap(pfimCacheHash_Rcpp(parts));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pfimEnvCacheKey_Rcpp
+std::string pfimEnvCacheKey_Rcpp(const std::string& x);
+RcppExport SEXP _PFIM_pfimEnvCacheKey_Rcpp(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(pfimEnvCacheKey_Rcpp(x));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pfimOdeSimTimesCached_Rcpp
+Rcpp::NumericVector pfimOdeSimTimesCached_Rcpp(const std::string& cache_key, const Rcpp::NumericVector& raw_samplings, const Rcpp::Nullable<Rcpp::NumericVector>& event_times, bool enabled, int max_entries);
+RcppExport SEXP _PFIM_pfimOdeSimTimesCached_Rcpp(SEXP cache_keySEXP, SEXP raw_samplingsSEXP, SEXP event_timesSEXP, SEXP enabledSEXP, SEXP max_entriesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type cache_key(cache_keySEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type raw_samplings(raw_samplingsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::Nullable<Rcpp::NumericVector>& >::type event_times(event_timesSEXP);
+    Rcpp::traits::input_parameter< bool >::type enabled(enabledSEXP);
+    Rcpp::traits::input_parameter< int >::type max_entries(max_entriesSEXP);
+    rcpp_result_gen = Rcpp::wrap(pfimOdeSimTimesCached_Rcpp(cache_key, raw_samplings, event_times, enabled, max_entries));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pfimOdeSimTimesCacheClear_Rcpp
+void pfimOdeSimTimesCacheClear_Rcpp();
+RcppExport SEXP _PFIM_pfimOdeSimTimesCacheClear_Rcpp() {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    pfimOdeSimTimesCacheClear_Rcpp();
+    return R_NilValue;
+END_RCPP
+}
+// pfimOdeSimTimesCacheSize_Rcpp
+int pfimOdeSimTimesCacheSize_Rcpp();
+RcppExport SEXP _PFIM_pfimOdeSimTimesCacheSize_Rcpp() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(pfimOdeSimTimesCacheSize_Rcpp());
     return rcpp_result_gen;
 END_RCPP
 }

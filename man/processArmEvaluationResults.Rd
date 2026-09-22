@@ -13,8 +13,13 @@ processArmEvaluationResults(arm, model, fim, ...)
 
 \item{fim}{A \code{Fim} object.}
 
-\item{...}{\code{designName} and \code{plotOptions}.}
+\item{...}{Design label and plot options (see methods).}
+}
+\value{
+Nested list of response plots by design and arm.
 }
 \description{
-Model response plots for one arm
+Re-evaluates the model on a dense time grid and overlays the
+design sampling times as red markers. The FIM arm is not modified.
 }
+\keyword{internal}

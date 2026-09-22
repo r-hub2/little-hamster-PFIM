@@ -14,18 +14,18 @@
 
 \item{funk}{R function \code{funk(data, pr, outcomes)}.}
 
-\item{outcomes}{Outcome structure passed to \code{funk}.}
+\item{outcomes}{Outcome structure passed to \code{funk} (unused on flat path).}
 
 \item{data}{Optimization object passed to \code{funk}.}
 
 \item{show_process}{Logical; print progress.}
 }
 \value{
-List with \code{p}, \code{y}, \code{iter}, \code{converge}, \code{results}.
+List with \code{p}, \code{y}, \code{iterations}, \code{converged}, \code{results}.
 }
 \description{
-Compiled implementation in \code{src/Simplexalgorithm.cpp}.
-The objective \code{funk} remains an R callback
-(\code{fisherSimplex}) because FIM evaluation stays in R.
+Compiled implementation in \code{src/SimplexAlgorithm.cpp}.
+The objective \code{funk} remains an R callback because FIM evaluation stays in R.
+Vertices are flat sampling vectors (same layout as PSO); C++ never sees arms.
 }
 \keyword{internal}

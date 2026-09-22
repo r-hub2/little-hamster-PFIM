@@ -6,26 +6,27 @@
 \arguments{
 \item{fisherMatrices}{List of FIM matrices.}
 
-\item{numberOfFisherMatrices}{Integer number of FIMs.}
+\item{n_fim}{Integer number of FIMs.}
 
 \item{weights}{Numeric vector of initial weights.}
 
-\item{numberOfParameters}{Integer number of parameters.}
-
-\item{dim}{Integer FIM dimension (p).}
+\item{p}{Integer FIM dimension.}
 
 \item{lambda}{Numeric exponent parameter lambda.}
 
 \item{delta}{Numeric convergence tolerance delta.}
 
-\item{iterationInit}{Integer maximum iterations.}
+\item{iteration_init}{Integer maximum iterations.}
+
+\item{show_process}{Logical; print iteration progress to the console.}
 }
 \value{
-Named list: \code{weights} (final weights), \code{iterationEnd}.
+Named list: \code{weights}, \code{iterations}, \code{converged},
+  \code{singularFim}.
 }
 \description{
 Calls the compiled Rcpp implementation of the multiplicative weight-update
-algorithm (Seurat et al., 2021). Registered via \code{Rcpp::compileAttributes()}
+algorithm. Registered via \code{Rcpp::compileAttributes()}
 in \code{R/RcppExports.R}.
 }
 \keyword{internal}

@@ -3,8 +3,14 @@
 \name{pgbo_optimize_Rcpp}
 \alias{pgbo_optimize_Rcpp}
 \title{Population Genetics Based Optimization kernel (Rcpp).}
+\value{
+A list of optimization results.
+}
 \description{
-Compiled implementation in \code{src/Pgboalgorithm.cpp}. FIM evaluation and
-per-group constraint checks are R callbacks.
+Compiled implementation in \code{src/PGBOAlgorithm.cpp}. R<->C++ contract:
+\code{sorting_groups} are 1-based; mutations are per group.
+\code{check_valid_group(trial, group_1based)} is the feasibility gate
+(no \code{windows_list} clamp - unlike PSO). \code{eval_d} returns D
+(not 1/D); the kernel minimises \code{1/D}.
 }
 \keyword{internal}

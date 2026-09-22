@@ -4,28 +4,29 @@
 \alias{FedorovWynnAlgorithm}
 \title{FedorovWynnAlgorithm}
 \usage{
-FedorovWynnAlgorithm(
-  elementaryProtocols = list(),
-  numberOfSubjects = 0,
-  proportionsOfSubjects = 0,
-  showProcess = FALSE,
-  FedorovWynnAlgorithmOutputs = list()
-)
+FedorovWynnAlgorithm(FedorovWynnAlgorithmOutputs = list())
 }
 \arguments{
-\item{elementaryProtocols}{List of elementary protocols.}
-
-\item{numberOfSubjects}{Total number of subjects.}
-
-\item{proportionsOfSubjects}{Initial proportion vector for each protocol.}
-
-\item{showProcess}{Logical; print FIM enumeration progress.}
-
 \item{FedorovWynnAlgorithmOutputs}{Output list from the Rcpp routine.}
+}
+\value{
+A \code{FedorovWynnAlgorithm} specification object for \code{run(Optimization)}.
 }
 \description{
 Fedorov-Wynn exchange algorithm for D-optimal sampling-time design (Rcpp kernel).
+Pass \code{elementaryProtocols}, \code{numberOfSubjects}, and
+\code{proportionsOfSubjects} via \code{optimizerParameters} on \code{\link{Optimization}}.
+Optional \code{delta} (default \code{1e-4}) is the relative optimality
+gap \eqn{\max_i \phi_i \le p(1+\delta)}, same role as in the multiplicative algorithm.
+Each elementary protocol may be a flat numeric vector (full grid row) or a list of
+per-outcome vectors that concatenate to that row (typical PK/PD). A vignette-style
+\code{list(pk, pd)} with a single proportion is accepted as one multi-outcome protocol.
 }
 \details{
 FedorovWynnAlgorithm: S7 class
+}
+\examples{
+\dontrun{
+vignette("Example01")
+}
 }

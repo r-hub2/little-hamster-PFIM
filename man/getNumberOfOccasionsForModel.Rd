@@ -13,8 +13,6 @@ getNumberOfOccasionsForModel(model)
 Integer number of occasions.
 }
 \description{
-Uses the value stored on the model when set (e.g. temporary models in the
-gradient core force \code{numberOfOccasions = 1}); otherwise calls
-\code{inferNumberOfOccasions()}.
+Occasion count for a built \code{Model} object.
 }
 \keyword{internal}

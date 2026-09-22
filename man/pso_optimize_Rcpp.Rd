@@ -3,9 +3,15 @@
 \name{pso_optimize_Rcpp}
 \alias{pso_optimize_Rcpp}
 \title{Particle Swarm Optimization kernel (Rcpp).}
+\value{
+A list of optimization results.
+}
 \description{
-Compiled implementation in \code{src/Psokernel.cpp}. FIM evaluation uses
+Compiled implementation in \code{src/PSOKernel.cpp}. R<->C++ contract:
+\code{windows_list} length equals \code{length(initial_pos)};
+\code{sorting_groups} are 1-based index vectors; FIM evaluation uses
 \code{eval_fitness} (scalar fallback) and \code{eval_fitness_batch}
-(one matrix per swarm step).
+(preferred: one matrix per swarm step). \code{sample_valid_pos} reseeds
+particles that leave the feasible set.
 }
 \keyword{internal}

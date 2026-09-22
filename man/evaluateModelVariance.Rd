@@ -9,8 +9,9 @@ evaluateModelVariance(model, ...)
 \arguments{
 \item{model}{A \code{Model} object.}
 
-\item{...}{\code{arm} for model methods.}
+\item{...}{Arm passed to methods.}
 }
 \description{
 Residual variance at sampling times for an arm
 }
+\keyword{internal}

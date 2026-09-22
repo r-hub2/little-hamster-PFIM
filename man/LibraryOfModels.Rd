@@ -9,6 +9,19 @@ LibraryOfModels(models = list())
 \arguments{
 \item{models}{List of PK and PD model metadata objects.}
 }
+\value{
+An S7 object of class \code{LibraryOfModels}.
+}
 \description{
 Registry of built-in PK and PD model definitions.
+
+Subclasses \code{LibraryOfPKModels} and \code{LibraryOfPDModels} store named
+equation lists; \code{defineModelEquationsFromLibraryOfModel()} looks them up
+via the package instances \code{pkModelLibrary} / \code{pdModelLibrary}.
+}
+\examples{
+\donttest{
+length(prop(pkModelLibrary, "models"))
+length(prop(pdModelLibrary, "models"))
+}
 }

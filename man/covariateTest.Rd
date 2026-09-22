@@ -2,6 +2,7 @@
 % Please edit documentation in R/CovariateTest.R
 \name{covariateTest}
 \alias{covariateTest}
+\alias{tost}
 \title{covariateTest}
 \usage{
 covariateTest(
@@ -9,57 +10,70 @@ covariateTest(
   thetaL = log(0.8),
   thetaU = log(1.25),
   target_power = 0.9,
-  alpha = 0.05
+  alpha = 0.05,
+  tests = c("significance", "nonRelevance", "relevance")
+)
+
+tost(
+  pfimproject,
+  thetaL = log(0.8),
+  thetaU = log(1.25),
+  target_power = 0.9,
+  alpha = 0.05,
+  tests = c("significance", "nonRelevance", "relevance")
 )
 }
 \arguments{
 \item{pfimproject}{An \code{Evaluation} object (after \code{run()}).}
 
-\item{thetaL}{Lower bound on the log-ratio scale (default: log(0.80)).}
+\item{thetaL}{Lower bound on the log-ratio scale (default: \code{log(0.80)}).}
 
-\item{thetaU}{Upper bound on the log-ratio scale (default: log(1.25)).}
+\item{thetaU}{Upper bound on the log-ratio scale (default: \code{log(1.25)}).}
 
 \item{target_power}{Target power (default: 0.90).}
 
 \item{alpha}{Nominal type-I error rate (default: 0.05).}
+
+\item{tests}{Character vector: \code{"significance"},
+\code{"nonRelevance"}, \code{"relevance"} (subset allowed).}
 }
 \value{
-A \code{CovariateTest} object containing the three test dataframes.
+A \code{CovariateTest} object.
 }
 \description{
-Assess statistical significance and clinical relevance of covariate effects from the FIM.
+Assess significance and clinical relevance from the evaluation FIM.
+
+Pipeline: pull SE/RSE -> classify betas inside/outside the equivalence window
+on the relative-effect scale -> fill requested tables -> wrap in \code{CovariateTest}.
 }
 \details{
-Three tests are computed:
-\enumerate{
-  \item \strong{Significance} (slot \code{significance}) -- covariate effects \eqn{\beta}
-    (and population typical values \eqn{\mu} when \code{fimType = "population"}).
-    Two-sided Wald test (H0: effect = 0 on the log scale for \eqn{\beta}).
-    \eqn{PS = 1 - \Phi(z_{1-\alpha/2} - \beta/SE) + \Phi(-z_{1-\alpha/2} - \beta/SE)}.
-  \item \strong{Non-relevance / TOST} (slot \code{nonRelevance}) -- \eqn{\beta} with ratio in [0.80, 1.25].
-    \eqn{PNR = \Phi(-z_{1-\alpha} + (B_{sup}-\beta)/SE) - \Phi(z_{1-\alpha} + (B_{inf}-\beta)/SE)}.
-  \item \strong{Relevance} (slot \code{relevance}) -- \eqn{\beta} with ratio outside [0.80, 1.25].
-    \eqn{PR = \Phi(-z_{1-\alpha} + (B_{inf}-\beta)/SE) + 1 - \Phi(z_{1-\alpha} + (B_{sup}-\beta)/SE)}.
-}
-}
-\section{Standard errors and interpretation}{
+Covariate effects \eqn{\beta} only. Use \code{tests} to select which tables
+are computed and displayed (\code{"significance"}, \code{"nonRelevance"},
+\code{"relevance"}). Requires a \strong{population} FIM: individual and
+Bayesian FIMs omit \eqn{\beta} (subject-level precision conditions on
+covariates).
 
-Standard errors (SE) and power calculations depend on \code{fimType}:
-\describe{
-  \item{\code{population}}{
-    FIM includes \eqn{\mu}, \eqn{\beta}, IIV (\eqn{\omega^2}), IOV (\eqn{\gamma^2}), and residual
-    \eqn{\sigma}. SEs are appropriate for population design and sample-size formulas on all blocks.
-  }
-  \item{\code{individual}}{
-    Subject-level FIM: block-diagonal \eqn{(\mu,\beta)} and \eqn{\sigma} without \eqn{\omega^2}/\eqn{\gamma^2}
-    in the matrix. SEs for \eqn{\mu} are often large (no shrinkage); \strong{clinical tests (slots 2--3)
-    should focus on \eqn{\beta}}. Slot 1 includes \eqn{\mu} only for \code{population}.
-  }
-  \item{\code{Bayesian}}{
-    Prior-shrunk FIM on typical PK parameters (\eqn{\mu} block) plus a separate \eqn{\beta} block when
-    covariates are present; residual \eqn{\sigma} is not in this matrix. SEs reflect design information
-    with population prior on \eqn{\mu}; use slots 2--3 for covariate ratios.
-  }
+Relative-effect display (\code{Ratio}, TOST IC) uses \eqn{e^{\beta}} for the
+exponential covariate link and \eqn{1+\beta} for the additive link. The
+clinical window \code{[thetaL, thetaU]} remains on the log-ratio scale
+(default bioequivalence \code{[log(0.80), log(1.25)]}).
+
+Sample-size scaling: population FIM recovers unit variance as
+\code{SE^2 * N0}; individual / Bayesian FIM (not multiplied by arm size)
+use \code{N_scale = 1}, so \code{N_Required} is the number of independent
+replications of the subject-level design.
+
+Output column order (PFIM4-compatible):
+\code{Value}, \code{SE}, \code{RSE}, then (TOST) \code{Ratio} and IC bounds,
+then \code{Power}, \code{N_Required}. Each table is preceded by the target
+power for \code{N_Required} and, for TOST tables, the equivalence IC bounds.
 }
+\examples{
+\donttest{
+source(system.file("examples", "covariate-test-minimal.R", package = "PFIM"))
+nrow(prop(ct, "covariate"))
+ct_nr = covariateTest(ev, tests = "nonRelevance")
 }
 
+}
+\keyword{internal}

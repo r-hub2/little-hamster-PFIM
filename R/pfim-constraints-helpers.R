@@ -1,173 +1,56 @@
+#' Constraint tables for optimization reports.
+#'
+#' Builds \code{kableExtra} tables of arm-level dose/sampling constraints for
+#' discrete (Fedorov-Wynn / Multiplicative) and continuous (PSO / PGBO / Simplex)
+#' optimizers. Uses \code{getArmConstraints()} from \code{pfim-arm-constraints.R}.
+#' @include pfim-arm-constraints.R
+#' @include pfim-utils.R
+#' @name pfim-constraints-helpers
 NULL
-#' Evaluate a single constraint-grid cell and return the updated Evaluation.
+
+#' Build a kableExtra table from arm constraints (discrete optimizers).
+#' @noRd
 #' @keywords internal
-.evaluateFimConstraintsCell = function(
-    fimIndex,
-    iterDose,
-    iterComb,
-    totalIterations,
-    show_progress,
-    evaluation,
-    design,
-    arms,
-    dosesForDesign,
-    samplingsForFIMs,
-    designName,
-    combinationGrid,
-    baseModel = NULL,
-    baseFim   = NULL ) {
+.constraintsKbl = function( arms, optimizationAlgorithm, col_names ) {
+  armsConstraints = map( pluck( arms, 1L ), ~ getArmConstraints( .x, optimizationAlgorithm ) )
+  df = map( armsConstraints, ~ map( .x, ~ as.data.frame( .x, stringsAsFactors = FALSE ) ) ) |>
+    list_flatten() |>
+    list_rbind()
+  colnames( df ) = col_names
+  kbl( df, align = c( "l", rep( "c", ncol( df ) - 1L ) ) ) |>
+    kable_styling( bootstrap_options = "hover", full_width = FALSE,
+                   position = "center", font_size = 13 )
+}
 
-  armsWithDoses = purrr::map( arms, function( arm ) {
-    armName         = prop( arm, "name" )
-    administrations = prop( arm, "administrations" )
-    administrations = purrr::map( administrations, function( adm ) {
-      prop( adm, "dose" ) = dosesForDesign[[ armName ]][[ prop( adm, "outcome" ) ]][ iterDose ]
-      adm
-    } )
-    prop( arm, "administrations" ) = administrations
-    arm
-  } )
-
-  armsUpdated = purrr::map( armsWithDoses, function( arm ) {
-    armName       = prop( arm, "name" )
-    idx           = combinationGrid[ iterComb, armName ]
-    samplingEntry = purrr::pluck( samplingsForFIMs, designName, armName, idx )
-    prop( arm, "samplingTimes" ) = samplingEntry
-    list(
-      arm = arm,
-      samplingsForFW = unlist(
-        purrr::map( samplingEntry, ~ prop( .x, "samplings" ) ),
-        use.names = FALSE
-      )
-    )
-  } )
-
-  armResult  = armsUpdated[[ 1L ]]
-  tempDesign = design
-  prop( tempDesign, "arms" ) = list( armResult$arm )
-
-  if ( !is.null( baseModel ) && !is.null( baseFim ) ) {
-    evaluatedDesign = evaluateDesign( tempDesign, baseModel, baseFim )
-    fisherMatrix    = prop( prop( evaluatedDesign, "fim" ), "fisherMatrix" )
-    evalResult      = .pfimEvaluationFromDesign( evaluation, tempDesign, evaluatedDesign )
-  } else {
-    tempEval   = evaluation
-    prop( tempEval, "designs" ) = list( tempDesign )
-    evalResult = .pfimRunEvaluationCached( tempEval )
-    fim        = getFim( evalResult )
-    fisherMatrix = fim$fisherMatrix
-  }
-
-  dimFim       = nrow( fisherMatrix )
-  dimVec       = dimFim * ( dimFim + 1L ) / 2L
-
-  fisherMatrixForAlgoFW = matrix(
-    fisherMatrix[ rev( lower.tri( t( fisherMatrix ), diag = TRUE ) ) ],
-    ncol  = dimVec,
-    byrow = TRUE
-  )
-
-  if ( show_progress )
-    message( sprintf( "FIM evaluation: %d / %d", fimIndex, totalIterations ) )
-
-  list(
-    armResult             = armResult,
-    samplingsForFW        = armResult$samplingsForFW,
-    fisherMatrixForAlgoFW = fisherMatrixForAlgoFW,
-    fisherMatrix          = fisherMatrix,
-    dimFim                = dimFim,
-    cachedEvaluation      = evalResult
+#' kableExtra table of discrete-optimizer arm constraints for reports.
+#' @param optimizationAlgorithm An optimization algorithm object (Simplex, Fedorov-Wynn, etc.).
+#' @param arms List of \code{Arm} objects from the design.
+#' @return A \code{kableExtra} table.
+#' @noRd
+#' @keywords internal
+.pfimConstraintsTableDiscrete = function( optimizationAlgorithm, arms ) {
+  .constraintsKbl(
+    arms, optimizationAlgorithm,
+    c( "Arms name", "Number of subjects", "Outcome",
+       "Initial samplings", "Fixed times",
+       "Number of samplings optimisable", "Dose constraints" )
   )
 }
 
-
-
+#' kableExtra table of continuous-optimizer arm constraints for reports.
+#' @param optimizationAlgorithm A continuous optimizer object (PSO, PGBO, Simplex on windows).
+#' @param arms List of \code{Arm} objects from the design.
+#' @return A \code{kableExtra} table.
+#' @noRd
 #' @keywords internal
-
-.as_df_rows = function( lst ) {
-
-  if ( length( lst ) == 0L )
-
-    return( as.data.frame( list() ) )
-
-  map( lst, ~ as.data.frame( .x, stringsAsFactors = FALSE ) ) |> list_rbind()
-
-}
-
-
-
-#' @keywords internal
-
-.constraintsArmsTable = function( armsConstraints ) {
-
-  map( armsConstraints, .as_df_rows ) |> list_rbind()
-
-}
-
-
-
-#' @keywords internal
-
-.armConstraintsContinuous = function( arm ) {
-
-  armName = prop( arm, "name" )
-
-  armSize = prop( arm, "size" )
-
-  map( prop( arm, "samplingTimesConstraints" ), function( samplingConstraint ) {
-
-    outcome = prop( samplingConstraint, "outcome" )
-
-    initialSamplings = paste0(
-
-      "(", paste( prop( samplingConstraint, "initialSamplings" ), collapse = ", " ), ")"
-
-    )
-
-    samplingsWindows = paste(
-
-      map_chr(
-
-        prop( samplingConstraint, "samplingsWindows" ),
-
-        ~ paste0( "(", paste( .x, collapse = "," ), ")" )
-
-      ),
-
-      collapse = ", "
-
-    )
-
-    numberOfTimesByWindows = paste0(
-
-      "(", paste( prop( samplingConstraint, "numberOfTimesByWindows" ), collapse = ", " ), ")"
-
-    )
-
-    minSampling = paste0(
-
-      "(", paste( prop( samplingConstraint, "minSampling" ), collapse = ", " ), ")"
-
-    )
-
-    list(
-
-      "Arms name"                  = armName,
-
-      "Number of subjects"         = armSize,
-
-      "Outcome"                    = outcome,
-
-      "Initial samplings"          = initialSamplings,
-
-      "Samplings windows"          = samplingsWindows,
-
-      "Number of times by windows" = numberOfTimesByWindows,
-
-      "Min sampling"               = minSampling
-
-    )
-
-  } )
-
+.pfimConstraintsTableContinuous = function( optimizationAlgorithm, arms ) {
+  armsConstraints = map( pluck( arms, 1L ), ~ getArmConstraints( .x, optimizationAlgorithm ) )
+  armsConstraints = .constraintsArmsTable( armsConstraints )
+  colnames( armsConstraints ) = c(
+    "Arms name", "Number of subjects", "Outcome",
+    "Initial samplings", "Samplings windows", "Number of times by windows", "Min sampling"
+  )
+  kbl( armsConstraints, align = c( "l", rep( "c", ncol( armsConstraints ) - 1L ) ) ) |>
+    kable_styling( bootstrap_options = "hover", full_width = FALSE,
+                   position = "center", font_size = 13 )
 }

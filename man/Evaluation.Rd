@@ -7,6 +7,7 @@
 Evaluation(
   evaluationDesign = list(),
   name = character(0),
+  modelClass = character(0),
   modelParameters = list(),
   modelCovariates = list(),
   modelCovariatesEquation = character(0),
@@ -17,6 +18,7 @@ Evaluation(
   outputs = list(),
   fimType = character(0),
   odeSolverParameters = list(),
+  numberOfOccasions = NA_real_,
   fim = NULL
 )
 }
@@ -24,6 +26,9 @@ Evaluation(
 \item{evaluationDesign}{List of evaluated designs (filled by \code{run()}).}
 
 \item{name}{Character string: project name.}
+
+\item{modelClass}{Model S7 class name; filled by \code{defineModelType()} when empty.
+Custom classes: \code{\link{pfim_register_model_class}}.}
 
 \item{modelParameters}{List of \code{ModelParameter} objects.}
 
@@ -43,11 +48,34 @@ Evaluation(
 
 \item{fimType}{Character: \code{"population"}, \code{"individual"}, or \code{"Bayesian"}.}
 
-\item{odeSolverParameters}{List with \code{atol} and \code{rtol} for ODE solvers.}
+\item{odeSolverParameters}{List with \code{atol} and \code{rtol} for ODE solvers.
+Finite-difference steps assume parameter mus are scaled to O(1).}
+
+\item{numberOfOccasions}{Integer number of study occasions; \code{NA} to infer
+(see \code{\link{inferNumberOfOccasions}}). If set, must be consistent with
+IOV covariate sequences and \code{gamma} on parameters.}
 
 \item{fim}{\code{Fim} object filled after \code{run()}.}
 }
+\value{
+An \code{Evaluation} object with \code{evaluationDesign} and \code{fim} filled.
+}
 \description{
 Design evaluation: build the model, compute the Fisher information matrix (FIM),
-and store results per design.
+and store results per design. Inherits \code{PFIMProject} fields directly.
+Use \code{\link{prop}} for project fields on both \code{Evaluation} and
+\code{Optimization}. After \code{run()}, \code{\link{getEvaluationDesign}} returns
+per-design results when several designs were evaluated.
+
+Equation strings may use declared \code{\link{ModelParameter}} names,
+\code{t}, \code{dose_*} / \code{Tinf_*} for administered outcomes, and other
+outcome names. Free symbols resolve in \code{knitr::knit_global()} (while
+knitting) or \code{globalenv()}. Names that already exist on the search path
+(\code{beta}, \code{gamma}, \code{pi}) are not reported as missing; declare
+every model parameter explicitly.
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+}
 }

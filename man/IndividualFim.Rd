@@ -11,32 +11,55 @@ IndividualFim(
   SEAndRSE = list(),
   condNumberFixedEffects = 0,
   condNumberVarianceEffects = 0,
-  shrinkage = numeric(0)
+  shrinkage = numeric(0),
+  singularFim = FALSE
 )
 }
 \arguments{
-\item{fisherMatrix}{Labelled n x n FIM matrix.}
+\item{fisherMatrix}{Labelled FIM matrix.}
 
 \item{fixedEffects}{Fixed-effects sub-block.}
 
 \item{varianceEffects}{Variance-effects sub-block.}
 
-\item{SEAndRSE}{List of data frames: SE, RSE, and combined SE/RSE.}
+\item{SEAndRSE}{List with \code{SE}, \code{RSE}, and combined tables.}
 
 \item{condNumberFixedEffects}{Condition number of the fixed-effects block.}
 
 \item{condNumberVarianceEffects}{Condition number of the variance-effects block.}
 
-\item{shrinkage}{Named numeric vector of Bayesian shrinkage (percent) per parameter.}
+\item{shrinkage}{Named shrinkage (percent) per parameter (Bayesian FIM).}
+
+\item{singularFim}{\code{TRUE} when SE/RSE used a pseudo-inverse (singular FIM).
+Set in \code{.fimStoreEvaluationResult} from \code{.fimBuildSeAndRse}; D-criterion
+/ log-det still use the raw matrix (may be 0 / \code{-Inf} when singular).}
+}
+\value{
+An \code{IndividualFim} object (filled by \code{run()}).
 }
 \description{
 Individual (subject-level) Fisher information matrix.
 
-Supports covariates and IOV: gradients and residual variance are averaged over
-covariate combinations and occasions (same expectation as for population designs).
+Across covariate strata (and arms at design level), subject FIMs are combined
+by averaging covariances:
+\eqn{\bar C = \sum_s w_s M_s^{-1}}, \eqn{M_{\mathrm{eff}} = \bar C^{-1}}.
+A positive weight on a non-identifiable protocol yields \code{Inf} SE.
+This mixture is not comparable to summing Fisher matrices (PFIM 6 / PopED).
+Covariate \code{beta} effects are not subject parameters and are omitted.
+With IOV, each occasion uses
+\eqn{V_k = R_k + F_k\,\mathrm{diag}(\gamma^2)\,F_k^\top} for the
+\eqn{\mu} and residual \eqn{\sigma} blocks.
+
+Arm-level matrices are per-subject.
 }
 \details{
-Block-diagonal structure:
+Block-diagonal structure for a single stratum:
 \deqn{M_I = \mathrm{bdiag}(M_\mu, M_\sigma)}
-where \eqn{M_\mu = G^\top V^{-1} G} and \eqn{M_\sigma} is the variance-effects block.
+where \eqn{M_\mu = G^\top V^{-1} G} and \eqn{M_\sigma} is the residual
+variance-effects block (with the same \eqn{V} under IOV).
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+}
 }

@@ -1,77 +1,52 @@
-#' Response plots for all designs in an evaluation
+#' Nested response or SI plots for every design in an evaluation.
+#'
+#' Rebuilds the model once (no FD here - processors that need gradients build
+#' their own stencil). Arms come from \code{.pfimEvaluatedArmsForDesign()} so
+#' multi-design runs plot the evaluated schedules, not the unevaluated inputs.
+#' @noRd
+#' @keywords internal
+.pfimPlotAllDesigns = function( pfimproject, plotOptions, processor ) {
+  designs = prop( pfimproject, "designs" )
+  # FD is deferred to SI processors; response path stays prediction-only.
+  model   = rebuildEvalModel( pfimproject, finiteDifference = FALSE )
+  fim     = defineFim( pfimproject )
+  stats::setNames(
+    map( designs, function( design ) {
+      designName = prop( design, "name" )
+      plots      = map(
+        .pfimEvaluatedArmsForDesign( pfimproject, design ),
+        ~ processor( .x, model, fim, designName, plotOptions )
+      )
+      list_flatten( map( plots, ~ .x[[ designName ]] ) )
+    }),
+    map_chr( designs, ~ prop( .x, "name" ) )
+  )
+}
+
+#' Predicted responses with sampling markers for all designs/arms.
 #' @name plotEvaluation
+#' @usage NULL
 #' @export
+method( plotEvaluation, Evaluation ) = function( pfimproject, plotOptions = list() )
+  .pfimPlotAllDesigns( pfimproject, plotOptions, processArmEvaluationResults )
 
-method( plotEvaluation, Evaluation ) = function( pfimproject, plotOptions )
-{
-  designs = prop( pfimproject, "designs" )
-  model = rebuildEvalModel( pfimproject, finiteDifference = TRUE )
-  fim = defineFim( pfimproject )
-  design = pluck( designs, 1 )
-  designName = prop( design, "name" )
-  arms = prop( design, "arms" )
-  # generate and print all plots
-  allPlots = map( arms, ~ processArmEvaluationResults( .x, model, fim, designName, plotOptions ) )
-  allPlots = setNames( list( allPlots |> map( ~ .x[[designName]] ) |> list_flatten() ), designName )
-  return( allPlots )
-}
-
-#' Sensitivity indices for the optimal design
+#' Sensitivity indices over time for all designs/arms.
 #' @name plotSensitivityIndices
+#' @usage NULL
 #' @export
+method( plotSensitivityIndices, Evaluation ) = function( pfimproject, plotOptions = list() )
+  .pfimPlotAllDesigns( pfimproject, plotOptions, processArmEvaluationSI )
 
-method( plotSensitivityIndices, Evaluation ) = function( pfimproject, plotOptions )
-{
-  designs = prop( pfimproject, "designs" )
-  model = rebuildEvalModel( pfimproject, finiteDifference = TRUE )
-  fim = defineFim( pfimproject )
-  design = pluck( designs, 1 )
-  designName = prop( design, "name" )
-  arms = prop( design, "arms" )
-
-  # generate and print all plots
-  allPlots = map( arms, ~ processArmEvaluationSI( .x, model, fim, designName, plotOptions ) )
-  allPlots = setNames( list( allPlots |> map( ~ .x[[designName]] ) |> list_flatten() ), designName )
-  return( allPlots )
-}
-
-#' SE barplot for the optimal design
-#'
-#' @description
-#' Generates a bar plot showing the Standard Errors (SE) for the fixed effects
-#' and variance components of the model. This visualization helps assess the
-#' expected precision of the parameter estimates for the current design.
-#'
+#' SE bar chart for the primary evaluation FIM.
 #' @name plotSE
-#' @param pfimproject An object of class \code{PFIMProject} containing the evaluation results.
-#' @return A bar plot displaying the calculated SE for each model parameter.
-#'
-#' @examples
-#' \dontrun{
-#' # Assuming 'myPFIMproject' has been evaluated using run()
-#'
-#' # Generate the bar plot of Standard Errors
-#' plotSE(myPFIMproject)
-#' }
+#' @usage NULL
 #' @export
-
-# plot SE  from evaluation
 method( plotSE, Evaluation ) = function( pfimproject )
-{
-  # set the FIM and plot SE
-  fim = prop( pfimproject, "fim" )
-  plotSE = plotSEFIM( fim, pfimproject )
-  return( plotSE )
-}
+  plotSEFIM( prop( pfimproject, "fim" ), pfimproject )
 
-#' RSE barplot for the optimal design
+#' RSE bar chart for the primary evaluation FIM.
 #' @name plotRSE
+#' @usage NULL
 #' @export
-
 method( plotRSE, Evaluation ) = function( pfimproject )
-{
-  # set the FIM and plot RSE
-  fim = prop( pfimproject, "fim" )
-  plotRSE = plotRSEFIM( fim, pfimproject )
-  return( plotRSE )
-}
+  plotRSEFIM( prop( pfimproject, "fim" ), pfimproject )

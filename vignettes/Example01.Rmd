@@ -34,485 +34,835 @@ vignette: >
   margin-left:10px;
   line-height: 20px;
   }
-  
+
+  table th:first-child,
+  table td:first-child {
+  text-align: center;
+  vertical-align: top;
+  }
+
+  table th:nth-child(2),
+  table td:nth-child(2) {
+  text-align: left;
+  }
+
+  p > img {
+  max-width: 15cm;
+  height: auto;
+  display: block;
+  margin: 0.35em auto;
+  }
+
+  p > img.plot-bar {
+  max-width: 8cm;
+  max-height: 5cm;
+  }
+
   </style>
   
 ```{r global_options, echo = FALSE, include = FALSE}
 knitr::opts_knit$set(tangle = FALSE)
 backup_options = options()
-options(width = 3000)
-knitr::opts_chunk$set(purl = FALSE, collapse = TRUE,
-comment = "#>",echo = FALSE, warning = FALSE, message = FALSE,
-cache = FALSE, tidy = FALSE, size = "small")
 library(PFIM)
+set.seed(42)
+options(width = 200)
+utils = system.file("vignette-scripts", "pfim-vignette-utils.R", package = "PFIM")
+if (!nzchar(utils)) stop("pfim-vignette-utils.R not found.", call. = FALSE)
+source(utils, local = knitr::knit_global())
+paths = pfimVignetteSetupPaths()
+plotOptions = list(unitTime = c("hour"), unitOutcomes = c("mcg/mL", "DI%"))
+.pfimVignetteHas = function( name ) {
+  exists( name, inherits = TRUE ) && {
+    val = get( name, inherits = TRUE )
+    !is.null( val ) && ( !is.character( val ) || any( nzchar( val ) ) )
+  }
+}
+knitr::opts_chunk$set(purl = FALSE, collapse = TRUE,
+                      comment = "#>", echo = FALSE, warning = FALSE, message = FALSE,
+                      cache = FALSE, tidy = FALSE,
+                      fig.align = "center", out.width = "62%", dpi = 110,
+                      fig.width = 5, fig.height = 4, dev = "png")
 ```
 
 # Overview
 
-Data for this example result from a PKPD population study on a non-steroidal molecule [@FloresMurrieta1998]. Single doses of 1, 3.2, 10, 31.6, 56.2, or 100mg/kg per os were given respectively to 6 groups, each of which contained at least 6 rats (weighing 200g on average), following a parallel design. Blood sampling and drug response (DI score) evaluation were conducted at 0, 15, 30, and 45 min and at 1, 1.25, 1.5, 2, 3 and 4 hours after administration. Based on the evaluation results, we choose to optimize a design for 30 rats receiving a single dose of either 100mg/kg or 320 mg/kg, selecting only 3 from previously defined time points for blood sampling and response evaluation by using Fedorov-Wynn method and Multiplicative Algorithm. Reports of the design evaluation and optimization are available at <https://github.com/packagePFIM>
+This example is based on a landmark PK/PD population study of Tolmetin (a non-steroidal anti-inflammatory drug) in rats [@FloresMurrieta1998].
 
-# Design evaluation 
+The model consists of:
 
-### Define the model equations of the PKPD model
+- **PK:** one-compartment model with first-order oral absorption.
+- **PD:** an indirect response model (Type I) where the drug inhibits the synthesis rate (*Rin*) of an inflammation score (DI) via an Imax function.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+## Original experimental design
 
-modelEquations = list(  "Deriv_Cc" = "dose_RespPK/V*ka*exp(-ka*t) - Cl/V*Cc",
-                        "Deriv_E" = "Rin*(1-Imax*(Cc**gamma)/(Cc**gamma + IC50**gamma))-kout*E" ) 
+The original study involved 6 parallel groups of rats (*n* ≥ 6 per group) receiving single oral doses of 1, 3.2, 10, 31.6, 56.2, or 100 mg/kg per os. Blood sampling and drug response (DI score) evaluation were conducted at 0, 15, 30, and 45 min and at 1, 1.25, 1.5, 2, 3 and 4 hours after administration (nine non-zero sampling times in hours: 0.25–4 h).
+
+## Objectives
+
+1. **Evaluation:** compute the Population Fisher Information Matrix (FIM) for the original design to assess the precision of structural parameters and variance components (RSE%, Shrinkage). A Bayesian FIM is also computed for comparison.
+2. **Optimization:** identify the D-optimal design for a total of 30 rats by selecting dose levels and sampling times from a discrete candidate set. The Fedorov-Wynn and Multiplicative algorithms are compared.
+
+Optimisation results are computed by `example01_execute.R` (run once, then cached as `.RDS` in `data/`). HTML reports are written to `results/`. Reports are also available at <https://github.com/packagePFIM>
+
+# Design evaluation
+
+## Model equations
+
+The PKPD model is defined as a system of Ordinary Differential Equations (ODEs) using named character strings. PFIM performs symbolic differentiation on these strings to derive the sensitivity equations required for FIM computation.
+
+**Convention:**
+
+- Prefix `Deriv_`: mandatory; identifies the string as the right-hand side of an ODE.
+- Suffix: must match the state variable name (`Cc` or `E`).
+- Operators: standard R arithmetic; use `**` for exponentiation.
+
+**Equation 1 (PK)** — one-compartment model with first-order oral absorption:
+
+$$\frac{dC_c}{dt} = \frac{\mathrm{dose_{RespPK}}}{V} \cdot k_a \cdot e^{-k_a t} - \frac{Cl}{V} \cdot C_c$$
+
+| Symbol | Description |
+|--------|-------------|
+| *V* | volume of distribution (L) |
+| *ka* | first-order absorption rate constant (h⁻¹) |
+| *Cl* | total clearance (L/h) |
+| *Cc* | plasma drug concentration — state variable (mcg/mL) |
+
+**Equation 2 (PD)** — indirect response model, inhibition of production (Type I):
+
+$$\frac{dE}{dt} = R_{in} \left(1 - I_{max} \frac{C_c^\gamma}{C_c^\gamma + IC_{50}^\gamma}\right) - k_{out} \cdot E$$
+
+| Symbol | Description |
+|--------|-------------|
+| *Rin* | baseline production rate of the inflammation score (h⁻¹) |
+| *Imax* | maximum fractional inhibition (dimensionless, 0 < Imax ≤ 1) |
+| *IC50* | concentration producing 50% of Imax (mcg/mL) |
+| *gamma* | Hill coefficient (dimensionless) |
+| *kout* | first-order elimination rate of the effect (h⁻¹) |
+| *E* | pharmacodynamic response (DI inflammation score) — state variable |
+
+**Steady-state note:** at *t* = 0 (*Cc* = 0) the system is at equilibrium: *E*(0) = *Rin* / *kout* (here 614 / 6.14 = 100).
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+modelEquations = list(
+  "Deriv_Cc" = "dose_RespPK/V*ka*exp(-ka*t) - Cl/V*Cc",
+  "Deriv_E"  = "Rin*(1-Imax*(Cc**gamma)/(Cc**gamma + IC50**gamma))-kout*E"
+)
 ```
 
+## Model parameters
 
-### Set mu and omega for each parameter
+Parameters are specified via their population typical value (fixed effect, *mu*) and inter-individual variability (IIV, *omega*). PFIM assumes a log-normal distribution for all parameters, guaranteeing strict positivity.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+The parameter vector estimated by the population FIM is:
+
+$$\theta = \{\mu_V, \mu_{Cl}, \mu_{kout}, \mu_{Imax}, \mu_{IC50}, \mu_{gamma}, \omega^2_V, \omega^2_{Cl}, \omega^2_{kout}, \omega^2_{Imax}, \omega^2_{IC50}, \omega^2_{gamma}\}$$
+
+Parameters with `fixedMu = TRUE` are considered known constants and are excluded from the FIM. Parameters with *omega* = 0 have no IIV component and their variance is not estimated.
+
+| Name | Description | *mu* | *omega* | fixedMu |
+|------|-------------|------|---------|---------|
+| V | Volume of distribution (L) | 0.74 | 0.316 | FALSE |
+| Cl | Total clearance (L/h) | 0.28 | 0.456 | FALSE |
+| ka | Absorption rate constant (h⁻¹) | 10 | 0 | TRUE |
+| kout | Effect elimination rate (h⁻¹) | 6.14 | 0.947 | FALSE |
+| Rin | Baseline production rate (h⁻¹) | 614 | 0 | TRUE |
+| Imax | Maximum inhibition (-) | 0.76 | 0.439 | FALSE |
+| IC50 | Potency (mcg/mL) | 9.22 | 0.452 | FALSE |
+| gamma | Hill coefficient (-) | 2.77 | 1.761 | FALSE |
+
+**Rationale for fixed parameters:**
+
+- *ka*: very rapid oral absorption makes this parameter weakly identifiable from sparse PK data; fixing avoids numerical instability in the FIM.
+- *Rin*: entirely determined by the steady-state constraint *E*(0) = *Rin* / *kout*; estimating it jointly with *kout* would create a structural redundancy.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
 modelParameters = list(
-  
-  ModelParameter( name = "V",
-                  distribution = LogNormal( mu = 0.74, omega = 0.316 ) ),
-  
-  ModelParameter( name = "Cl",
-                  distribution = LogNormal( mu = 0.28, omega = 0.456 ) ),
-  
-  ModelParameter( name = "ka",
-                  distribution = LogNormal( mu = 10, omega = sqrt( 0 ) ), fixedMu = TRUE ),
-  
-  ModelParameter( name = "kout",
-                  distribution = LogNormal( mu = 6.14, omega = 0.947 ) ),
-  
-  ModelParameter( name = "Rin",
-                  distribution = LogNormal( mu = 614, omega = sqrt( 0 ) ), fixedMu = TRUE ),
-  
-  ModelParameter( name = "Imax",
-                  distribution = LogNormal( mu = 0.76, omega = 0.439 ) ),
-  
-  ModelParameter( name = "IC50",
-                  distribution = LogNormal( mu = 9.22, omega = 0.452 ) ),
-  
-  ModelParameter( name = "gamma",
-                  distribution = LogNormal( mu = 2.77, omega = 1.761 ) ) )
 
+  ModelParameter(name         = "V",
+                 distribution = LogNormal(mu = 0.74,  omega = 0.316)),
+
+  ModelParameter(name         = "Cl",
+                 distribution = LogNormal(mu = 0.28,  omega = 0.456)),
+
+  ModelParameter(name         = "ka",
+                 distribution = LogNormal(mu = 10,    omega = 0),
+                 fixedMu      = TRUE),
+
+  ModelParameter(name         = "kout",
+                 distribution = LogNormal(mu = 6.14,  omega = 0.947)),
+
+  ModelParameter(name         = "Rin",
+                 distribution = LogNormal(mu = 614,   omega = 0),
+                 fixedMu      = TRUE),
+
+  ModelParameter(name         = "Imax",
+                 distribution = LogNormal(mu = 0.76,  omega = 0.439)),
+
+  ModelParameter(name         = "IC50",
+                 distribution = LogNormal(mu = 9.22,  omega = 0.452)),
+
+  ModelParameter(name         = "gamma",
+                 distribution = LogNormal(mu = 2.77,  omega = 1.761))
+)
 ```
 
+## Residual error models
 
-### Create the error model to the responses PK and PD. 
+Two distinct residual error models are specified, one per response.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+`Combined1(output, sigmaInter, sigmaSlope)` — combined additive + proportional model:
 
-errorModelRespPK = Combined1( output = "RespPK", sigmaInter = 0, sigmaSlope = 0.21 )
+$$\mathrm{SD}(\epsilon) = \sigma_{inter} + \sigma_{slope} \cdot f(\theta, \xi)$$
 
-errorModelRespPD = Constant( output = "RespPD", sigmaInter = 9.6 )
+Setting `sigmaInter = 0` reduces it to a pure proportional model: SD(ε_PK) = 0.21 × *Cc* (21% proportional error). This is appropriate for plasma concentrations where measurement error scales with the signal magnitude across the dynamic range.
 
-modelError = list( errorModelRespPK, errorModelRespPD )
+`Constant(output, sigmaInter)` — additive error model: SD(ε_PD) = 9.6 DI units. This is appropriate for bounded inflammation scores whose measurement precision does not depend on the response level.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+errorModelRespPK = Combined1(output = "RespPK", sigmaInter = 0,   sigmaSlope = 0.21)
+errorModelRespPD = Constant( output = "RespPD", sigmaInter = 9.6)
+
+modelError = list(errorModelRespPK, errorModelRespPD)
 ```
 
-### Define the arms and for each arm 
-+ create the administration parameters for the response PK
-+ create the sampling times for the responses PK and PD
+## Sampling times
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+Nine observation times (hours) are used for both responses, spanning:
 
+- Absorption and peak phase: 0.25–1.00 h
+- Post-peak / distribution: 1.25–2.00 h
+- Elimination / offset phase: 3.00–4.00 h
 
-# sampling times
-samplingTimesRespPK = SamplingTimes( outcome = "RespPK",
-                                     samplings = c( 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4 ) )
+Time 0 is omitted: *Cc*(0) = 0 and *E*(0) = 100 are fixed initial conditions that carry no information about model parameters (zero sensitivity).
 
-samplingTimesRespPD = SamplingTimes( outcome = "RespPD",
-                                     samplings = c( 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4 ) )
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-# Define the arms and the administrations
+samplingTimesRespPK = SamplingTimes(
+  outcome   = "RespPK",
+  samplings = c(0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4)
+)
 
-administrationRespPK1 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 0.2 ) )
-
-arm1 = Arm( name = "0.2mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK1 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
-
-administrationRespPK2 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 0.64 ) )
-
-arm2 = Arm( name = "0.64mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK2 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
-
-administrationRespPK3 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 2 ) )
-
-arm3 = Arm( name = "2mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK3 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
-
-administrationRespPK4 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 6.24 ) )
-
-arm4 = Arm( name = "6.24mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK4 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
-
-administrationRespPK5 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 11.24 ) )
-
-arm5 = Arm( name = "11.24mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK5 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
-
-administrationRespPK6 = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 20 ) )
-
-arm6 = Arm( name = "20mg Arm",
-            size = 6,
-            administrations = list( administrationRespPK6 ) ,
-            samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-            initialCondition = list( "Cc" = 0,
-                                     "E" = 100 ) )
+samplingTimesRespPD = SamplingTimes(
+  outcome   = "RespPD",
+  samplings = c(0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4)
+)
 ```
 
-### Add the arms to the design `design1`
+## Arms (dose groups)
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+Six arms correspond to the original dose levels, converted from mg/kg to absolute doses for a 200 g rat (dose_mg = dose_mg/kg × 0.200 kg).
 
-design1 = Design( name = "design1", arms = list( arm1, arm2, arm3, arm4, arm5, arm6 ) )
+| Arm | mg/kg | Absolute dose | Subjects |
+|-----|-------|---------------|----------|
+| 1 | 1.0 | 0.20 mg | 6 |
+| 2 | 3.2 | 0.64 mg | 6 |
+| 3 | 10.0 | 2.00 mg | 6 |
+| 4 | 31.6 | 6.32 mg | 6 |
+| 5 | 56.2 | 11.24 mg | 6 |
+| 6 | 100.0 | 20.00 mg | 6 |
+
+Design summary: 6 arms × 6 subjects = 36 subjects total.
+
+Initial conditions:
+
+- *Cc*(0) = 0: no drug present at baseline.
+- *E*(0) = 100: inflammation score at steady-state (= *Rin* / *kout* = 614 / 6.14).
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+administrationRespPK1 = Administration(
+  outcome  = "RespPK",
+  timeDose = c(0),
+  dose     = c(0.2)
+)
+
+arm1 = Arm(
+  name             = "0.2mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK1),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
+
+administrationRespPK2 = Administration(outcome = "RespPK", timeDose = c(0), dose = c(0.64))
+
+arm2 = Arm(
+  name             = "0.64mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK2),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
+
+administrationRespPK3 = Administration(outcome = "RespPK", timeDose = c(0), dose = c(2))
+
+arm3 = Arm(
+  name             = "2mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK3),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
+
+administrationRespPK4 = Administration(outcome = "RespPK", timeDose = c(0), dose = c(6.32))
+
+arm4 = Arm(
+  name             = "6.32mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK4),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
+
+administrationRespPK5 = Administration(outcome = "RespPK", timeDose = c(0), dose = c(11.24))
+
+arm5 = Arm(
+  name             = "11.24mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK5),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
+
+administrationRespPK6 = Administration(outcome = "RespPK", timeDose = c(0), dose = c(20))
+
+arm6 = Arm(
+  name             = "20mg Arm",
+  size             = 6,
+  administrations  = list(administrationRespPK6),
+  samplingTimes    = list(samplingTimesRespPK, samplingTimesRespPD),
+  initialCondition = list("Cc" = 0, "E" = 100)
+)
 ```
 
-### Evaluate the population FIM
+## Design assembly
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+`Design()` aggregates all arms into a single experimental design object.
 
-evaluationPop = Evaluation( name = " ",
-                            modelEquations = modelEquations,
-                            modelParameters = modelParameters,
-                            modelError = modelError,
-                            outputs = list( "RespPK"  = "Cc", "RespPD"  = "E" ),
-                            designs = list( design1 ),
-                            fimType = "population",
-                            odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-evaluationPop = run( evaluationPop )
+design1 = Design(
+  name = "design1",
+  arms = list(arm1, arm2, arm3, arm4, arm5, arm6)
+)
 ```
 
-### Display the results of the design evaluation
+## Population and Bayesian FIM evaluation
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+The `Evaluation()` constructor specifies the full statistical model:
 
-show( evaluationPop )
-fisherMatrix = getFisherMatrix( evaluationPop )
-getCorrelationMatrix( evaluationPop )
-getSE( evaluationPop )
-getRSE( evaluationPop )
-getShrinkage( evaluationPop )
-getDeterminant( evaluationPop )
-getDcriterion( evaluationPop )
+| Argument | Role |
+|:--------:|:-----|
+| `modelEquations` | user-defined ODE system |
+| `modelParameters` | fixed effects + IIV |
+| `modelError` | intra-individual error |
+| `outputs` | named list mapping outcome labels to ODE state variables (`"RespPK"` → `Cc`, `"RespPD"` → `E`) |
+| `designs` | list of `Design` objects to evaluate |
+| `fimType` | `"population"` estimates θ = {*mu*, ω²}; `"Bayesian"` is the individual FIM regularized by a prior on ω² |
+| `odeSolverParameters` | passed to `deSolve::lsoda`; tight tolerances (1e-8) are required because the PD sub-model is moderately stiff (*kout* = 6.14 h⁻¹ implies rapid equilibration of the effect) |
+
+PFIM applies a First-Order (FO) linearization, expanding the individual model in a first-order Taylor series around the typical values *mu*. The population FIM has dimension *p* × *p*, where *p* = number of estimable parameters (here *p* = 12: 6 fixed effects + 6 variance components).
+
+### Population FIM
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+evaluationPop = Evaluation(
+  name                = "evaluation",
+  modelEquations      = modelEquations,
+  modelParameters     = modelParameters,
+  modelError          = modelError,
+  outputs             = list("RespPK" = "Cc", "RespPD" = "E"),
+  designs             = list(design1),
+  fimType             = "population",
+  odeSolverParameters = list(atol = 1e-8, rtol = 1e-8)
+)
+
+evaluationPop = run(evaluationPop)
 ```
 
-### Graphs of the results of the design evaluation
+### Bayesian FIM
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+The Bayesian FIM augments the individual FIM with the inverse prior covariance matrix (Ω⁻¹), acting as a regularization term. This is equivalent to a Maximum A Posteriori (MAP) estimation framework and is relevant when prior information on ω² is available. All other arguments are identical to the population evaluation above.
 
-plotOptions = list( unitTime = c("hour"), unitOutcomes = c("mcg/mL","DI%")  )
-plotEvaluation = plotEvaluation( evaluationPop, plotOptions )
-plotSensitivityIndices = plotSensitivityIndices( evaluationPop, plotOptions )
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-SE = plotSE( evaluationPop )
-RSE = plotRSE( evaluationPop )
+evaluationBay = Evaluation(
+  name                = "evaluation",
+  modelEquations      = modelEquations,
+  modelParameters     = modelParameters,
+  modelError          = modelError,
+  outputs             = list("RespPK" = "Cc", "RespPD" = "E"),
+  designs             = list(design1),
+  fimType             = "Bayesian",
+  odeSolverParameters = list(atol = 1e-8, rtol = 1e-8)
+)
 
-# examples
-plotOutcomesEvaluationRespPK = plotEvaluation[["design1"]][["20mg Arm"]][["RespPK"]]
-plotOutcomesEvaluationRespPD = plotEvaluation[["design1"]][["20mg Arm"]][["RespPD"]]
-plotSensitivityIndice_RespPK_Cl = plotSensitivityIndices[["design1"]][["20mg Arm"]][["RespPK"]][["Cl"]]
+evaluationBay = run(evaluationBay)
 ```
 
-### Report for the design evaluation
+```{r ex01_run, include = FALSE}
+script = system.file("vignette-scripts", "example01_execute.R", package = "PFIM")
+if (!nzchar(script) || !file.exists(script)) {
+  stop("example01_execute.R not found; reinstall PFIM or rebuild vignettes.")
+}
+source(script, local = knitr::knit_global())
+```
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+## Results: display and export
 
-outputPath = getwd()
+Accessor functions for retrieving results from `Evaluation` / `Optimization` objects:
+
+| Function | Description |
+|:--------:|:------------|
+| `show(x)` | formatted summary of all statistical metrics |
+| `getFisherMatrix(x)` | retrieves the FIM |
+| `getCorrelationMatrix(x)` | normalized FIM to identify parameter collinearity |
+| `getSE(x)` | asymptotic Standard Errors (SE) |
+| `getRSE(x)` | Relative Standard Errors (RSE%) |
+| `getShrinkage(x)` | Shrinkage (%) for random effects |
+| `getDeterminant(x)` | determinant of the FIM |
+| `getDcriterion(x)` | D-optimality criterion of the FIM |
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+show(evaluationPop)
+writeLines(capture.output(show(evaluationPop)),
+           file.path(paths$outputs, "vignette1_evaluation_populationFIM_show.txt"))
+fisherMatrix = getFisherMatrix(evaluationPop)
+getCorrelationMatrix(evaluationPop)
+getSE(evaluationPop)
+getRSE(evaluationPop)
+getShrinkage(evaluationPop)
+getDeterminant(evaluationPop)
+getDcriterion(evaluationPop)
+
+show(evaluationBay)
+writeLines(capture.output(show(evaluationBay)),
+           file.path(paths$outputs, "vignette1_evaluation_BayesianFIM_show.txt"))
+fisherMatrix = getFisherMatrix(evaluationBay)
+getCorrelationMatrix(evaluationBay)
+getSE(evaluationBay)
+getRSE(evaluationBay)
+getShrinkage(evaluationBay)
+getDeterminant(evaluationBay)
+getDcriterion(evaluationBay)
+```
+
+```{r ex01_show_pop, echo = FALSE, results = "asis"}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputEvaluationPop, "</pre>\n", sep = "")
+```
+
+```{r ex01_show_bay, echo = FALSE, results = "asis"}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputEvaluationBay, "</pre>\n", sep = "")
+```
+
+## Diagnostic plots
+
+`plotEvaluation()`, `plotSensitivityIndices()`, `plotSE()`, and `plotRSE()` are the PFIM entry points for evaluation graphics:
+
+- `plotEvaluation()` — model predictions vs sampling times, nested as `result[["designName"]][["armName"]][["outcomeName"]]`
+- `plotSensitivityIndices()` — sensitivity index curves, nested as `result[["design"]][["arm"]][["outcome"]][["param"]]`
+- `plotSE()` / `plotRSE()` — ggplot2 bar charts of Standard and Relative Standard Errors
+
+`plotOptions` controls axis labels in all PFIM graphics.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+plotOptions = list(unitTime = c("hour"), unitOutcomes = c("mcg/mL", "DI%"))
+
+plotsEval1_eval = plotEvaluation(evaluationPop, plotOptions)
+plotsEval1_si   = plotSensitivityIndices(evaluationPop, plotOptions)
+
+plotOutcomesEvaluationRespPK = plotsEval1_eval[["design1"]][["20mg Arm"]][["RespPK"]]
+plotOutcomesEvaluationRespPD = plotsEval1_eval[["design1"]][["20mg Arm"]][["RespPD"]]
+plotSensitivityIndice_RespPK_Cl = plotsEval1_si[["design1"]][["20mg Arm"]][["RespPK"]][["Cl"]]
+plotSensitivityIndice_RespPK_V = plotsEval1_si[["design1"]][["20mg Arm"]][["RespPK"]][["V"]]
+plotEval_SE = PFIM::plotSE(evaluationPop)
+plotEval_RSE = PFIM::plotRSE(evaluationPop)
+
+ggsave(file.path(paths$figures, "vignette1_evaluation_populationFim_design1_arm20mg_RespPK.pdf"),
+       plotOutcomesEvaluationRespPK, width = 8, height = 5)
+```
+
+```{r ex01_plot_eval_resppk, echo = FALSE, fig.width = 11, fig.height = 6.875, out.width = "95%"}
+plotOutcomesEvaluationRespPK
+```
+
+```{r ex01_plot_eval_resppd, echo = FALSE, fig.width = 11, fig.height = 6.875, out.width = "95%"}
+plotOutcomesEvaluationRespPD
+```
+
+```{r ex01_plot_si_cl, echo = FALSE, fig.width = 11, fig.height = 6.875, out.width = "95%"}
+plotSensitivityIndice_RespPK_Cl
+```
+
+```{r ex01_plot_si_v, echo = FALSE, fig.width = 11, fig.height = 6.875, out.width = "95%"}
+plotSensitivityIndice_RespPK_V
+```
+
+```{r ex01_plot_se, echo = FALSE, fig.height = 3.6}
+plotEval_SE
+```
+
+```{r ex01_plot_rse, echo = FALSE, fig.height = 3.6}
+plotEval_RSE
+```
+
+## HTML report
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
 outputFile = "Example01_EvaluationPopFIM.html"
-plotOptions = list( unitTime=c("hour"), unitOutcomes = c("mcg/mL","DI%") )
-Report( evaluationPop, outputPath, outputFile, plotOptions )
-```
-
-### Evaluate the individual and Bayesian FIMs
-
-```{r, echo = TRUE, eval = FALSE, comment=''} 
-
-evaluationInd = Evaluation( name = " ",
-                            modelEquations = modelEquations,
-                            modelParameters = modelParameters,
-                            modelError = modelError,
-                            outputs = list( "RespPK"  = "Cc", "RespPD"  = "E" ),
-                            designs = list( design1 ),
-                            fimType = "individual",
-                            odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
-
-evaluationInd = run( evaluationInd )
-
-evaluationBay = Evaluation( name = " ",
-                            modelEquations = modelEquations,
-                            modelParameters = modelParameters,
-                            modelError = modelError,
-                            outputs = list( "RespPK"  = "Cc", "RespPD"  = "E" ),
-                            designs = list( design1 ),
-                            fimType = "Bayesian",
-                            odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
-
-evaluationBay = run( evaluationBay )
-```
-
-### Display the results of the design evaluation
-
-```{r, echo = TRUE, eval = FALSE, comment=''} 
-
-
-show( evaluationInd )
-show( evaluationBay )
-
-fisherMatrix = getFisherMatrix( evaluationInd )
-getCorrelationMatrix( evaluationInd )
-getSE( evaluationInd )
-getRSE( evaluationInd )
-getShrinkage( evaluationInd )
-getDeterminant( evaluationInd )
-getDcriterion( evaluationInd )
-
-fisherMatrix = getFisherMatrix( evaluationBay )
-
-getCorrelationMatrix( evaluationBay )
-getSE( evaluationBay )
-getRSE( evaluationBay )
-getShrinkage( evaluationBay )
-getDeterminant( evaluationBay )
-getDcriterion( evaluationBay )
-```
-
-### Reports of the results of the design evaluation
-
-```{r, echo = TRUE, eval = FALSE, comment=''} 
-
-
-outputPath = getwd()
-
-plotOptions = list( unitTime=c("hour"), unitOutcomes= c("mcg/mL","DI%") )
-
-outputFile = "Example01_EvaluationIndFIM.html"
-Report( evaluationInd, outputPath, outputFile, plotOptions )
-
-outputFile = "Example01_EvaluationBayFIM.html"
-Report( evaluationBay, outputPath, outputFile, plotOptions )
-
+Report(evaluationPop, paths$reports, outputFile, plotOptions)
 ```
 
 # Design optimization
 
-### Create an administration for response PK and samplings times
+## Objectives and constraints
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+Building on the evaluation above, we now seek an optimal design for a future study under practical constraints:
 
-administrationRespPK = Administration( outcome = "RespPK", timeDose = c(0), dose = c( 6.24 ) )
+- Total sample size fixed at 30 subjects (a single arm, subdivided into elementary protocols by the optimizer)
+- Doses restricted to the discrete set: {0.2, 0.64, 2, 6.32, 11.24, 20} mg
+- For RespPK: 4 sampling times in total, including 2 fixed times; the remaining 2 are chosen from {0.75, 1, 1.5, 2, 6}
+- For RespPD: 4 sampling times in total, including 2 fixed times; the remaining 2 are chosen from {0.25, 0.75, 1.5, 3, 8, 12}
 
-```
-We create sampling times that will be used in the initial design for comparison during the optimization process. 
+## Algorithms compared
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+Both algorithms operate in the discrete candidate space and maximize the D-criterion of the population FIM.
 
-samplingTimesRespPK = SamplingTimes( outcome = "RespPK", samplings = c( 0.25, 0.75, 1, 1.5, 2, 4, 6 ) )
+**Fedorov-Wynn (FW):** an exact exchange algorithm that iteratively adds the elementary protocol (dose × sampling schedule pair) that most increases the FIM determinant, then removes the least contributing one. It converges to a D-optimal design on the discrete support of candidate protocols.
 
-samplingTimesRespPD = SamplingTimes( outcome = "RespPD", samplings = c( 0.25, 0.75, 1.5, 2, 3, 6, 8, 12 ) )
-```
+**Multiplicative Algorithm (MA):** a continuous relaxation method that assigns and iteratively updates weights to all candidate protocols. Weights below a threshold are zeroed at convergence, yielding a sparse approximate D-optimal design. Unlike FW, MA does not require initial elementary protocols and explores the full candidate space simultaneously.
 
-### Create a sampling constraint for the responses PK and PD
+## Runtime note
 
-+ Set the vector of allowed sampling times for the responses PK and PD
-+ Fix certain time values
-+ Set the number of optimizable sampling times 
+Both algorithms require approximately 10–15 minutes to run on a standard workstation. During vignette rendering, `example01_execute.R` runs each optimization once (with `showProcess = FALSE`) and saves the result to `data/`; subsequent renders load the cached `.RDS` files.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+## Initial administration and candidate sampling grids
 
-samplingConstraintsRespPK  = SamplingTimeConstraints( outcome = "RespPK",
-                                                      initialSamplings = c( 0.25, 0.75, 1, 1.5, 2, 4, 6 ),
-                                                      fixedTimes = c( 0.25, 4 ),
-                                                      numberOfsamplingsOptimisable = 4 )
+Starting dose for the constrained arm. The optimizer will reassign doses to subjects from the discrete set defined in the administration constraints below.
 
-samplingConstraintsRespPD  = SamplingTimeConstraints( outcome = "RespPD",
-                                                      initialSamplings = c( 0.25, 0.75, 1.5, 2, 3, 6, 8, 12 ),
-                                                      fixedTimes = c( 2, 6 ),
-                                                      numberOfsamplingsOptimisable = 4 )
-```
-### Set the initial vectors for the FedorovWynn algorithm
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
-
-initialElementaryProtocols = list( c( 0.25, 0.75, 1, 4 ), c( 1.5, 2, 6, 12 ) )
+administrationRespPK = Administration(outcome = "RespPK", timeDose = c(0), dose = c(6.32))
 ```
 
-### Create an administration constraint with the vector of allowed amount of doses for the response PK
+These are the full sets of candidate time points (hours) from which the optimizer will select the most informative subset, subject to the constraints defined in the next sections.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-administrationConstraintsRespK = AdministrationConstraints( outcome = "RespPK", 
-                                                            doses = list( 0.2, 0.64, 2, 6.24, 11.24, 20 ) )
+samplingTimesRespPK = SamplingTimes(
+  outcome   = "RespPK",
+  samplings = c(0.25, 0.75, 1, 1.5, 2, 4, 6)
+)
 
+samplingTimesRespPD = SamplingTimes(
+  outcome   = "RespPD",
+  samplings = c(0.25, 0.75, 1.5, 2, 3, 6, 8, 12)
+)
 ```
 
-### Create the constraint design to the project
-+ total number of individuals to be considered
-+ administration constraint
-+ sampling constraint
+## Sampling time constraints
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+`SamplingTimeConstraints(outcome, initialSamplings, fixedTimes, numberOfsamplingsOptimisable, ...)` restricts which time points can be assigned; one object per outcome in the arm.
 
+**RespPK constraints:**
 
-armConstraint = Arm( name = "armConstraint",
-                     size = 30,
-                     administrations = list( administrationRespPK ),
-                     samplingTimes   = list( samplingTimesRespPK, samplingTimesRespPD ),
-                     administrationsConstraints = list( administrationConstraintsRespK ),
-                     samplingTimesConstraints = list( samplingConstraintsRespPK, samplingConstraintsRespPD ),
-                     initialCondition = list( "Cc" = 0,
-                                              "E" = "Rin/kout"  ) )
+- `fixedTimes`: 0.25 h captures the rising absorption phase and Cmax region; 4.0 h anchors the late elimination phase for reliable Cl/V estimation.
+- `numberOfsamplingsOptimisable = 4`: total times per protocol for this outcome (the 2 fixed times plus 2 free times chosen from {0.75, 1, 1.5, 2, 6}).
 
-designConstraint = Design( name = "designConstraint", 
-                           arms = list( armConstraint ), numberOfArms = 30 )
+**RespPD constraints:**
+
+- `fixedTimes`: 2 h is near the expected peak effect (captures Emax region and IC50 estimation); 6 h is the mid-recovery phase (informative for *kout* estimation).
+- `numberOfsamplingsOptimisable = 4`: total times per protocol (2 fixed plus 2 free from {0.25, 0.75, 1.5, 3, 8, 12}).
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+samplingConstraintsRespPK = SamplingTimeConstraints(
+  outcome                      = "RespPK",
+  initialSamplings             = c(0.25, 0.75, 1, 1.5, 2, 4, 6),
+  fixedTimes                   = c(0.25, 4),
+  numberOfsamplingsOptimisable = 4
+)
+
+samplingConstraintsRespPD = SamplingTimeConstraints(
+  outcome                      = "RespPD",
+  initialSamplings             = c(0.25, 0.75, 1.5, 2, 3, 6, 8, 12),
+  fixedTimes                   = c(2, 6),
+  numberOfsamplingsOptimisable = 4
+)
 ```
 
-### Set the vector of initial proportions or numbers of subjects for each elementary design
+## Initial elementary protocols for Fedorov-Wynn
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+An elementary protocol is a (dose, sampling schedule) combination for a homogeneous subgroup of subjects. In a PK/PD arm the sampling schedule is **multi-outcome**: PK times and PD times are concatenated on the FW candidate grid.
 
-numberOfSubjects = c(30)
-proportionsOfSubjects = c(30)/30
+The initial support used here is **one** protocol (with `proportionsOfSubjects` of length 1):
+
+- RespPK times: {0.25, 0.75, 1, 4} h  
+- RespPD times: {1.5, 2, 6, 12} h  
+
+Pass it as a nested list (one element = one support point), or equivalently as a single flat vector of length 8. A vignette-style `list(pk, pd)` with one proportion is also accepted.
+
+`initialElementaryProtocols` is passed to `optimizerParameters$elementaryProtocols` inside the `Optimization()` call; it is only used by `FedorovWynnAlgorithm`.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+initialElementaryProtocols = list(
+  list(
+    c(0.25, 0.75, 1, 4),
+    c(1.5, 2, 6, 12)
+  )
+)
 ```
 
-### Set the the parameters of the FedorovWynn algorithm and run the algorithm for the design optimization with a population FIM
+## Dose constraints
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+`AdministrationConstraints(outcome, doses)` restricts which dose values the optimizer can assign to each elementary protocol. The discrete set (in mg) corresponds to the 6 dose levels of the original study.
 
-optimizationFWPopFIM = Optimization(  name = "PKPD_ODE_multi_doses_populationFIM",
-                                      modelEquations = modelEquations,
-                                      modelParameters = modelParameters,
-                                      modelError = modelError,
-                                      
-                                      optimizer = "FedorovWynnAlgorithm",
-                                      
-                                      optimizerParameters = list( elementaryProtocols = initialElementaryProtocols,
-                                                                  numberOfSubjects = numberOfSubjects,
-                                                                  proportionsOfSubjects = proportionsOfSubjects,
-                                                                  showProcess = TRUE ),
-                                      
-                                      designs = list( designConstraint ),
-                                      
-                                      fimType = "population",
-                                      
-                                      outputs = list( "RespPK" = "Cc","RespPD" = "E" ),
-                                      
-                                      odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-optimizationFWPopFIM = run( optimizationFWPopFIM )
-
-saveRDS( optimizationFWPopFIM, "optimizationFWPopFIM.RDS" )
+administrationConstraintsRespPK = AdministrationConstraints(
+  outcome = "RespPK",
+  doses   = list(0.2, 0.64, 2, 6.32, 11.24, 20)
+)
 ```
 
-### Display and plot the results of the design optimization
+## Constrained arm and design
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+The arm encodes all constraints simultaneously and serves as the template that both optimization algorithms will operate on.
 
-show( optimizationFWPopFIM )
-fisherMatrix = getFisherMatrix( optimizationFWPopFIM )
-getCorrelationMatrix( optimizationFWPopFIM )
-getSE( optimizationFWPopFIM )
-getRSE( optimizationFWPopFIM )
-getShrinkage( optimizationFWPopFIM )
-getDeterminant( optimizationFWPopFIM )
-getDcriterion( optimizationFWPopFIM )
+- `administrationsConstraints`: list of `AdministrationConstraints` objects; restricts which doses can be assigned.
+- `samplingTimesConstraints`: list of `SamplingTimeConstraints` objects; one per outcome.
 
-# plot the frequencies 
-plotFrequencies = plotFrequencies( optimizationFWPopFIM )
-plotFrequencies
+The initial condition for *E* is specified as `"Rin/kout"` (a formula string) rather than the numeric value 100. PFIM evaluates this expression at the typical parameter values, giving *E*₀ = 614 / 6.14 = 100. This ensures that the initial condition remains consistent with the model structure if parameter estimates are updated.
+
+`numberOfArms` is the upper bound on the number of distinct elementary protocols the optimizer can create.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+armConstraint = Arm(
+  name                       = "armConstraint",
+  size                       = 30,
+  administrations            = list(administrationRespPK),
+  samplingTimes              = list(samplingTimesRespPK, samplingTimesRespPD),
+  administrationsConstraints = list(administrationConstraintsRespPK),
+  samplingTimesConstraints   = list(samplingConstraintsRespPK, samplingConstraintsRespPD),
+  initialCondition           = list("Cc" = 0, "E" = "Rin/kout")
+)
+
+designConstraint = Design(
+  name         = "designConstraint",
+  arms         = list(armConstraint),
+  numberOfArms = 30
+)
+
+numberOfSubjects      = c(30)
+proportionsOfSubjects = c(30) / 30
 ```
 
-### Reports for the design optimization
+For very large dose × sampling grids, cap FIM evaluations (deterministic subsample):
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+pfim_set_option(constraints.maxTasks = 500)
+```
+
+## Fedorov-Wynn algorithm
+
+The Fedorov-Wynn algorithm is an exact combinatorial exchange method for finding D-optimal designs in a discrete candidate space. It proceeds as:
+
+1. Start from the user-supplied initial elementary protocols.
+2. Evaluate the directional derivative of the D-criterion for every candidate protocol not currently in the design support.
+3. Add the protocol with the highest derivative (greedy ascent step).
+4. Remove the protocol that contributes least to the current FIM.
+5. Repeat steps 2–4 until the improvement in |FIM| falls below a tolerance.
+
+`FedorovWynnAlgorithm` `optimizerParameters`:
+
+| Parameter | Description |
+|:---------:|:------------|
+| `elementaryProtocols` | list of protocols; each protocol is a flat numeric vector (full grid row) or a list of per-outcome vectors (e.g. PK then PD) |
+| `numberOfSubjects` | integer vector; total *N* to distribute across protocols |
+| `proportionsOfSubjects` | numeric vector summing to 1; initial allocation fractions |
+| `showProcess` | logical; if `TRUE`, prints per-iteration D-criterion values |
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+optimizationFWPopFIM = Optimization(
+  name                = "PKPD_ODE_multi_doses_populationFIM",
+  modelEquations      = modelEquations,
+  modelParameters     = modelParameters,
+  modelError          = modelError,
+  optimizer           = "FedorovWynnAlgorithm",
+  optimizerParameters = list(
+    elementaryProtocols   = initialElementaryProtocols,
+    numberOfSubjects      = numberOfSubjects,
+    proportionsOfSubjects = proportionsOfSubjects,
+    showProcess           = FALSE
+  ),
+  designs             = list(designConstraint),
+  fimType             = "population",
+  outputs             = list("RespPK" = "Cc", "RespPD" = "E"),
+  odeSolverParameters = list(atol = 1e-8, rtol = 1e-8)
+)
+
+optimizationFWPopFIM = run(optimizationFWPopFIM)
+saveRDS(optimizationFWPopFIM,
+        file.path(paths$data, "vignette_1_optimization_FedorovWynn_populationFIM.RDS"))
+```
+
+### Display and plot Fedorov-Wynn results
+
+Comparing RSE and D-criterion between `evaluationPop` and `optimizationFWPopFIM` quantifies the information gain from optimization with 30 vs 36 subjects.
+
+For `FedorovWynnAlgorithm`, `plotFrequencies()` returns a bar chart showing how the 30 subjects are distributed across the selected elementary protocols. The number of non-zero bars is the support size of the D-optimal design.
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+show(optimizationFWPopFIM)
+writeLines(capture.output(show(optimizationFWPopFIM)),
+           file.path(paths$outputs, "vignette1_optimization_FedorovWynn_populationFIM_show.txt"))
+fisherMatrix = getFisherMatrix(optimizationFWPopFIM)
+getCorrelationMatrix(optimizationFWPopFIM)
+getSE(optimizationFWPopFIM)
+getRSE(optimizationFWPopFIM)
+getShrinkage(optimizationFWPopFIM)
+getDeterminant(optimizationFWPopFIM)
+getDcriterion(optimizationFWPopFIM)
+
+plotFWFrequencies = PFIM::plotFrequencies(optimizationFWPopFIM)
+plotFW_SE = PFIM::plotSE(optimizationFWPopFIM)
+plotFW_RSE = PFIM::plotRSE(optimizationFWPopFIM)
+plotFWFrequencies
+```
+
+```{r ex01_show_fw, echo = FALSE, results = "asis", eval = .pfimVignetteHas("showOutputFW")}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputFW, "</pre>\n", sep = "")
+```
+
+```{r ex01_plot_fw_freq, echo = FALSE, fig.width = 7, fig.height = 4.375, out.width = "42%", out.extra = 'class="plot-bar"', eval = .pfimVignetteHas("plotFWFrequencies")}
+plotFWFrequencies
+```
+
+```{r ex01_plot_fw_se, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotFW_SE")}
+plotFW_SE
+```
+
+```{r ex01_plot_fw_rse, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotFW_RSE")}
+plotFW_RSE
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
 outputFile = "Example01_OptimizationFWPopFIM.html"
-Report( optimizationFWPopFIM, outputPath, outputFile, plotOptions )
+Report(optimizationFWPopFIM, paths$reports, outputFile, plotOptions)
 ```
 
-### Set the the parameters of the Multiplicative Algorithm algorithm and run the algorithm for the design optimization with a population FIM
+## Multiplicative algorithm
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+The Multiplicative algorithm (cocktail / multiplicative weights update) is an iterative continuous relaxation approach to D-optimal design in a discrete candidate space. It proceeds as:
 
-optimizationMultPopFIM = Optimization( name = "PKPD_ODE_multi_doses_populationFIM",
-                                       modelEquations = modelEquations,
-                                       modelParameters = modelParameters,
-                                       modelError = modelError,
-                                       
-                                       optimizer = "MultiplicativeAlgorithm",
-                                       
-                                       optimizerParameters = list( lambda = 0.99,
-                                                                   numberOfIterations = 1000,
-                                                                   weightThreshold = 0.01,
-                                                                   delta = 1e-04, showProcess = TRUE ),
-                                       
-                                       designs = list( designConstraint ),
-                                       
-                                       fimType = "population",
-                                       
-                                       outputs = list( "RespPK" = "Cc","RespPD" = "E" ),
-                                       
-                                       odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
+1. Initialize uniform weights *w*ₖ = 1/*K* for each of *K* candidate protocols.
+2. At each iteration, update weights multiplicatively: *w*ₖ(*t*+1) ∝ *w*ₖ(*t*) × *d*ₖ(ξₜ), where *d*ₖ(ξₜ) is the normalized directional derivative of the D-criterion for protocol *k* under the current design ξₜ.
+3. After convergence (change in D-criterion < *delta*), set to zero all weights below `weightThreshold`, yielding a sparse approximate D-optimal design.
 
-```
- 
-### Run the Multiplicative Algorithm algorithm for the optimization with a population FIM
+Unlike the Fedorov-Wynn algorithm, the MA explores the full candidate space simultaneously without requiring initial elementary protocols, and may converge to a different local optimum.
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+`MultiplicativeAlgorithm` `optimizerParameters`:
 
-optimizationMultPopFIM = run( optimizationMultPopFIM )
-saveRDS( optimizationMultPopFIM, "optimizationMultPopFIM.RDS" )
+| Parameter | Description |
+|:---------:|:------------|
+| `lambda` | step-size dampening factor (0 < λ < 1); values close to 1 slow convergence but reduce oscillations |
+| `numberOfIterations` | maximum number of multiplicative update cycles |
+| `weightThreshold` | protocols with weight < threshold at convergence are zeroed (here 0.01 = < 1% of subjects) |
+| `delta` | convergence tolerance on the relative D-criterion change (here 1e-4: stop when improvement < 0.01%) |
+| `showProcess` | logical; if `TRUE`, prints per-iteration D-criterion values |
 
-```
+```{r, echo = TRUE, eval = FALSE, comment=''}
 
-### Display and plot the results of the design optimization
+optimizationMultPopFIM = Optimization(
+  name                = "PKPD_ODE_multi_doses_populationFIM",
+  modelEquations      = modelEquations,
+  modelParameters     = modelParameters,
+  modelError          = modelError,
+  optimizer           = "MultiplicativeAlgorithm",
+  optimizerParameters = list(
+    lambda             = 0.99,
+    numberOfIterations = 1000,
+    weightThreshold    = 0.01,
+    delta              = 1e-04,
+    showProcess        = FALSE
+  ),
+  designs             = list(designConstraint),
+  fimType             = "population",
+  outputs             = list("RespPK" = "Cc", "RespPD" = "E"),
+  odeSolverParameters = list(atol = 1e-8, rtol = 1e-8)
+)
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
-
-show( optimizationMultPopFIM )
-fisherMatrix = getFisherMatrix( optimizationMultPopFIM )
-getCorrelationMatrix( optimizationMultPopFIM )
-getSE( optimizationMultPopFIM )
-getRSE( optimizationMultPopFIM )
-getShrinkage( optimizationMultPopFIM )
-getDeterminant( optimizationMultPopFIM )
-getDcriterion( optimizationMultPopFIM )
-
-# plot the weight
-plotWeights = plotWeights( optimizationMultPopFIM )
-plotWeights
-
+optimizationMultPopFIM = run(optimizationMultPopFIM)
+saveRDS(optimizationMultPopFIM,
+        file.path(paths$data, "vignette_1_optimization_multiplicativeAlgorithm_populationFIM.RDS"))
 ```
 
-### Create and save the report for the design optimization
+### Display and plot Multiplicative algorithm results
 
-```{r, echo = TRUE, eval = FALSE, comment=''} 
+For `MultiplicativeAlgorithm`, `plotWeights()` returns a bar chart of the final weight of each candidate protocol after convergence. Non-zero weights define the design support; comparing this plot to `plotFrequencies()` from FW reveals whether both algorithms converge to the same support, confirming robustness.
 
-outputPath = getwd()
-plotOptions = list( unitTime = c( "hour" ), unitOutcomes= c( "mcg/mL" , "DI%" ) )
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
+show(optimizationMultPopFIM)
+writeLines(capture.output(show(optimizationMultPopFIM)),
+           file.path(paths$outputs, "vignette1_optimization_MultiplicativeAlgorithm_populationFIM_show.txt"))
+fisherMatrix = getFisherMatrix(optimizationMultPopFIM)
+getCorrelationMatrix(optimizationMultPopFIM)
+getSE(optimizationMultPopFIM)
+getRSE(optimizationMultPopFIM)
+getShrinkage(optimizationMultPopFIM)
+getDeterminant(optimizationMultPopFIM)
+getDcriterion(optimizationMultPopFIM)
+
+plotMultWeights = PFIM::plotWeights(optimizationMultPopFIM)
+plotMult_SE = PFIM::plotSE(optimizationMultPopFIM)
+plotMult_RSE = PFIM::plotRSE(optimizationMultPopFIM)
+ggsave(file.path(paths$figures, "vignette1_optimization_MultiplicativeAlgorithm_populationFIM_weights.pdf"),
+       plotMultWeights, width = 8, height = 5)
+plotMultWeights
+```
+
+```{r ex01_show_mult, echo = FALSE, results = "asis", eval = .pfimVignetteHas("showOutputMult")}
+cat("<pre style=\"font-size: 11px; line-height: 1.25; overflow-x: auto;\">",
+    showOutputMult, "</pre>\n", sep = "")
+```
+
+```{r ex01_plot_mult_weights, echo = FALSE, fig.width = 7, fig.height = 4.375, out.width = "42%", out.extra = 'class="plot-bar"', eval = .pfimVignetteHas("plotMultWeights")}
+plotMultWeights
+```
+
+```{r ex01_plot_mult_se, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotMult_SE")}
+plotMult_SE
+```
+
+```{r ex01_plot_mult_rse, echo = FALSE, fig.height = 3.6, eval = .pfimVignetteHas("plotMult_RSE")}
+plotMult_RSE
+```
+
+```{r, echo = TRUE, eval = FALSE, comment=''}
+
 outputFile = "Example01_OptimizationMultPopFIM.html"
-Report( optimizationMultPopFIM, outputPath, outputFile, plotOptions )
+Report(optimizationMultPopFIM, paths$reports, outputFile, plotOptions)
 ```
 
-# References  
+# References
+
 ```{r global_options_end, echo = FALSE, include = FALSE}
 options(backup_options)
 ```
-

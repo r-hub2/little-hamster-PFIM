@@ -2,18 +2,30 @@
 % Please edit documentation in R/s7-reexports.R
 \name{prop}
 \alias{prop}
-\title{S7 property accessor (re-exported from \pkg{S7}).}
+\alias{prop<-}
+\title{Property accessor (S7); project fields on \code{Optimization} read slot \code{project}.}
 \usage{
 prop(object, name)
+
+prop(object, name) <- value
 }
 \arguments{
-\item{object}{An S7 object (e.g. \code{Evaluation}, \code{Arm}).}
+\item{object}{An S7 object.}
 
-\item{name}{Property name (character scalar).}
+\item{name}{Property name.}
+
+\item{value}{Value to assign.}
 }
 \value{
-Property value; use \code{prop(x, "name") <- value} to assign.
+The requested property value, or the modified object for replacement.
 }
 \description{
-S7 property accessor (re-exported from \pkg{S7}).
+Property accessor (S7); project fields on \code{Optimization} read slot \code{project}.
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+prop(ev, "name")
+prop(ev, "name") = "renamed"
+}
 }

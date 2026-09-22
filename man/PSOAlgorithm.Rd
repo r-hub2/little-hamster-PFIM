@@ -4,28 +4,26 @@
 \alias{PSOAlgorithm}
 \title{PSOAlgorithm}
 \usage{
-PSOAlgorithm(
-  maxIteration = numeric(0),
-  populationSize = numeric(0),
-  seed = numeric(0),
-  personalLearningCoefficient = numeric(0),
-  globalLearningCoefficient = numeric(0),
-  showProcess = FALSE
-)
+PSOAlgorithm(optimizerOutputs = list())
 }
 \arguments{
-\item{maxIteration}{Numeric: the maxIteration.}
-
-\item{populationSize}{Numeric: the populationSize.}
-
-\item{seed}{Numeric: the seed.}
-
-\item{personalLearningCoefficient}{Numeric: the personalLearningCoefficient.}
-
-\item{globalLearningCoefficient}{Numeric: the globalLearningCoefficient.}
-
-\item{showProcess}{Logical: the showProcess.}
+\item{optimizerOutputs}{List filled by \code{optimizeDesign()} (optimal arms, etc.).}
+}
+\value{
+A \code{PSOAlgorithm} specification object.
 }
 \description{
-Particle Swarm Optimization for sampling-time search (Rcpp kernel in \code{src/Psokernel.cpp}).
+Particle Swarm Optimization for sampling-time search (Rcpp kernel in \code{src/PSOKernel.cpp}).
+Pass \code{maxIteration}, \code{populationSize}, \code{seed}, and learning coefficients
+via \code{optimizerParameters} on \code{\link{Optimization}}.
+Search starts from each outcome's \code{initialSamplings} (reported initial design);
+\code{seed} controls swarm exploration after that start.
+Optional \code{tolerance} (default \code{0}, stall stop disabled ->
+\code{converged = NA}) and \code{stallIterations}
+(default \code{5}) enable early stopping when \code{tolerance > 0}.
+}
+\examples{
+\dontrun{
+vignette("Example02")
+}
 }

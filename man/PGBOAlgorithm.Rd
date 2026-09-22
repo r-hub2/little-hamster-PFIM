@@ -4,31 +4,30 @@
 \alias{PGBOAlgorithm}
 \title{PGBOAlgorithm}
 \usage{
-PGBOAlgorithm(
-  N = numeric(0),
-  muteEffect = numeric(0),
-  maxIteration = numeric(0),
-  purgeIteration = numeric(0),
-  fitBase = 0.03,
-  seed = numeric(0),
-  showProcess = FALSE
-)
+PGBOAlgorithm(optimizerOutputs = list())
 }
 \arguments{
-\item{N}{Numeric: the parameter N.}
-
-\item{muteEffect}{Numeric: the parameter muteEffect.}
-
-\item{maxIteration}{Numeric: the parameter maxIteration.}
-
-\item{purgeIteration}{Numeric: the parameter purgeIteration.}
-
-\item{fitBase}{Numeric: baseline fitness for PGBO (default 0.03).}
-
-\item{seed}{Numeric: the parameter seed.}
-
-\item{showProcess}{Logical: showProcess.}
+\item{optimizerOutputs}{List filled by \code{optimizeDesign()} (optimal arms, etc.).}
+}
+\value{
+A \code{PGBOAlgorithm} specification object.
 }
 \description{
 Population-based global optimization for sampling times (Rcpp kernel).
+Pass \code{N}, \code{muteEffect}, \code{maxIteration}, \code{purgeIteration}, and
+\code{seed} via \code{optimizerParameters} on \code{\link{Optimization}}.
+\code{muteEffect} is an additive mutation scale in the same time unit as the
+sampling windows (e.g. hours), not a ratio in \eqn{[0,1]}.
+Search starts from each outcome's \code{initialSamplings}; \code{seed} controls
+mutation draws only.
+Optional \code{fitBase} (default \code{0.03}) and \code{cauchyProb} (default \code{0.8},
+probability of a Cauchy jump vs Gaussian group mutation).
+Optional \code{tolerance} (default \code{0}, stall stop disabled ->
+\code{converged = NA}) and \code{stallIterations}
+(default \code{5}) enable early stopping when \code{tolerance > 0}.
+}
+\examples{
+\dontrun{
+vignette("Example02")
+}
 }

@@ -4,28 +4,30 @@
 \alias{MultiplicativeAlgorithm}
 \title{MultiplicativeAlgorithm}
 \usage{
-MultiplicativeAlgorithm(
-  lambda = 0,
-  delta = 0,
-  numberOfIterations = 0,
-  weightThreshold = 0,
-  showProcess = FALSE,
-  multiplicativeAlgorithmOutputs = list()
-)
+MultiplicativeAlgorithm(multiplicativeAlgorithmOutputs = list())
 }
 \arguments{
-\item{lambda}{Step-size parameter for weight updates.}
-
-\item{delta}{Convergence threshold on weight changes.}
-
-\item{numberOfIterations}{Maximum number of iterations.}
-
-\item{weightThreshold}{Minimum weight below which a time point is removed.}
-
-\item{showProcess}{If TRUE, print FIM enumeration progress and a short summary.}
-
-\item{multiplicativeAlgorithmOutputs}{Raw algorithm outputs (weights, history).}
+\item{multiplicativeAlgorithmOutputs}{Compact outputs after optimize
+(retained \code{listArms}, weights, D-criteria, \code{algorithmOutput}).
+Filled by \code{optimizeDesign()}.}
+}
+\value{
+A \code{MultiplicativeAlgorithm} specification object.
 }
 \description{
-Multiplicative weight algorithm for optimal sampling-time allocation (Seurat et al., 2021).
+Multiplicative weight algorithm for optimal sampling-time allocation (Rcpp kernel).
+Pass \code{lambda}, \code{delta}, \code{numberOfIterations}, and
+\code{weightThreshold} via \code{optimizerParameters} on \code{\link{Optimization}}.
+
+Outputs store two D-values: \code{mixtureDcriterion} is the D of the continuous
+mixture over retained candidate cells; \code{realisedDcriterion} is the D of
+the single protocol actually implemented. For joint multi-outcome cells (several
+arms sharing one protocol in the constraint grid), only the best-weighted cell
+is kept - mixture weights describe the optimisation simplex, not a multi-protocol
+subject allocation across joint arms.
+}
+\examples{
+\dontrun{
+vignette("Example01")
+}
 }

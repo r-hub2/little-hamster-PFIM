@@ -75,5 +75,5 @@ test_that("PKPD population FIM with covariate runs when outputs have different n
 
   show_lines = utils::capture.output( show( evaluation ) )
   expect_true( any( grepl( "RSE\\(%\\)", show_lines, fixed = FALSE ) ) )
-  expect_true( any( grepl( "mu_Cl|μ_Cl", show_lines, fixed = FALSE ) ) )
+  expect_true( any( grepl( "mu_Cl|\u03bc_Cl|<U\\+03BC>_Cl", show_lines ) ) )
 })

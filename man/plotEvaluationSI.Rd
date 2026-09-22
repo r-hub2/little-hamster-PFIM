@@ -9,8 +9,14 @@ plotEvaluationSI(arm, ...)
 \arguments{
 \item{arm}{An \code{Arm} object.}
 
-\item{...}{Gradient data and plot options for the \code{Arm} method.}
+\item{...}{Method-specific sensitivity-index plotting inputs (see methods).}
+}
+\value{
+Nested list of ggplot objects for sensitivity indices.
 }
 \description{
 ggplot of parameter sensitivities over time
+
+Default method for \code{Arm}.
 }
+\keyword{internal}

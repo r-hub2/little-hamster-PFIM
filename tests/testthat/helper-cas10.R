@@ -1,5 +1,4 @@
-# Shared fixtures for cas10-style covariate + IOV tests (PK 1-cpt, ka/V/Cl).
-
+# cas10-style cov/IOV fixtures (1-cpt PK, ka/V/Cl).
 cas10_model_from_library = function() {
   list( PKModel = "Linear1FirstOrderSingleDose_kaClV" )
 }
@@ -70,6 +69,7 @@ cas10_evaluation = function( name, fimType ) {
     designs                 = list( fx$design1 ),
     fimType                 = fimType,
     outputs                 = list( "RespPK" ),
-    odeSolverParameters     = list( atol = 1e-8, rtol = 1e-8 )
+    odeSolverParameters     = list( atol = 1e-8, rtol = 1e-8 ),
+    numberOfOccasions       = 4L
   )
 }

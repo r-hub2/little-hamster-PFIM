@@ -261,48 +261,22 @@ test_that("Model PK 1cpt : Linear1InfusionSingleDose_ClV", {
 
 })
 
-test_that("Model PK 1cpt : Linear1FirstOrderSingleDose_kaClV", {
-
-
-  modelFromLibrary = list("PKModel" = "Linear1FirstOrderSingleDose_kaClV")
-
-
-  # model modelParameters
+test_that("Model PK 1cpt : Linear1FirstOrderSteadyState_kaClVtau", {
+  modelFromLibrary = list("PKModel" = "Linear1FirstOrderSteadyState_kaClVtau")
   modelParameters = list(
-    ModelParameter( name = "V", distribution = LogNormal( mu = 8, omega = sqrt(0.020) ) ),
-    ModelParameter( name = "Cl",  distribution = LogNormal( mu = 0.13, omega = sqrt(0.06) ) ),
-    ModelParameter( name = "ka",  distribution = LogNormal( mu = 1.6, omega = sqrt(0.7) ) )
+    ModelParameter( name = "ka",  distribution = LogNormal( mu = 1.050, omega = sqrt(0.1) ) ),
+    ModelParameter( name = "Cl",  distribution = LogNormal( mu = 0.513, omega =  0 ) ),
+    ModelParameter( name = "V", distribution = LogNormal( mu = 63.000, omega =  0 ) )
   )
-
-  # Error Model
-  errorModelRespPK = Combined1( output = "RespPK", sigmaInter = 0.6, sigmaSlope = 0.07 )
+  errorModelRespPK = Combined1( output = "RespPK", sigmaInter = 0, sigmaSlope = 0.0676 )
   modelError = list( errorModelRespPK )
-
-
-  # administration
-  administration = Administration( outcome = "RespPK",
-                                   timeDose = c( 0, 80, 160 ),
-                                   dose = c( 100,100,100 ) )
-
-  # sampling times
-  samplingTimes = SamplingTimes( outcome = "RespPK", samplings = c(  0.5, 1, 2, 6, 12, 48, 72, 120, 165, 220 ) )
-
-  # arm
-  arm1 = Arm( name = "BrasTest",
-              size = 32,
-              administrations  = list( administration ) ,
-              samplingTimes    = list( samplingTimes )
-  )
-
-  # design
-  design1 = Design( name = "design1",
-                    arms = list( arm1 ) )
-
-  # --------------------------------------
-  # Evaluation
-
-  # Evaluate the Fisher Information Matrix for the PopulationFIM
-  evaluationFIM = Evaluation( name = "Linear1FirstOrderSingleDose_kaClV",
+  administration = Administration( outcome = "RespPK", tau = c(24), dose = c( 5500 ) )
+  samplingTimes = SamplingTimes( outcome = "RespPK", samplings = c( 0.01, 1, 3, 5, 7, 10, 13, 17, 24 ) )
+  arm1 = Arm( name = "BrasTest", size = 25,
+              administrations = list( administration ),
+              samplingTimes = list( samplingTimes ) )
+  design1 = Design( name = "design1", arms = list( arm1 ) )
+  evaluationFIM = Evaluation( name = "Linear1FirstOrderSteadyState_kaClVtau",
                               modelFromLibrary = modelFromLibrary,
                               modelParameters = modelParameters,
                               modelError = modelError,
@@ -310,34 +284,10 @@ test_that("Model PK 1cpt : Linear1FirstOrderSingleDose_kaClV", {
                               designs = list( design1 ),
                               fimType = "population",
                               odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
-
   evaluationFIM = run( evaluationFIM )
-
   FisherMatrix = getFisherMatrix(evaluationFIM )
-  detPopulationFim = det(  FisherMatrix$fisherMatrix )
-  valueDetPopulationFim = 23048351728920705368024
-
-  # Evaluate the Fisher Information Matrix for the individual FIM
-  evaluationFIM = Evaluation( name = "Linear1FirstOrderSingleDose_kaClV",
-                              modelFromLibrary = modelFromLibrary,
-                              modelParameters = modelParameters,
-                              modelError = modelError,
-                              outputs = list( "RespPK" ),
-                              designs = list( design1 ),
-                              fimType = "individual",
-                              odeSolverParameters = list( atol = 1e-8, rtol = 1e-8 ) )
-
-  #evaluationFIM = run( evaluationFIM )
-
-  #FisherMatrix = getFisherMatrix(evaluationFIM )
-  #detIndividualFim =det(  FisherMatrix$fisherMatrix )
-  #valueDetIndividualFim =  618022401.4696867465973
-  tol = 1e-6
-  expect_equal( detPopulationFim, valueDetPopulationFim, tolerance = tol )
-  #expect_equal( detIndividualFim, valueDetIndividualFim, tolerance = tol )
-
+  detPopulationFim = det( FisherMatrix$fisherMatrix )
+  valueDetPopulationFim = 119307107145
+  expect_equal(detPopulationFim, valueDetPopulationFim, tolerance = 1e-6 )
 })
-
-###################################################################################################################################
-
 

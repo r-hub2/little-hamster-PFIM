@@ -11,28 +11,49 @@ BayesianFim(
   SEAndRSE = list(),
   condNumberFixedEffects = 0,
   condNumberVarianceEffects = 0,
-  shrinkage = numeric(0)
+  shrinkage = numeric(0),
+  singularFim = FALSE
 )
 }
 \arguments{
-\item{fisherMatrix}{Labelled n x n FIM matrix.}
+\item{fisherMatrix}{Labelled FIM matrix.}
 
 \item{fixedEffects}{Fixed-effects sub-block.}
 
 \item{varianceEffects}{Variance-effects sub-block.}
 
-\item{SEAndRSE}{List of data frames: SE, RSE, and combined SE/RSE.}
+\item{SEAndRSE}{List with \code{SE}, \code{RSE}, and combined tables.}
 
 \item{condNumberFixedEffects}{Condition number of the fixed-effects block.}
 
 \item{condNumberVarianceEffects}{Condition number of the variance-effects block.}
 
-\item{shrinkage}{Named numeric vector of Bayesian shrinkage (percent) per parameter.}
+\item{shrinkage}{Named shrinkage (percent) per parameter (Bayesian FIM).}
+
+\item{singularFim}{\code{TRUE} when SE/RSE used a pseudo-inverse (singular FIM).
+Set in \code{.fimStoreEvaluationResult} from \code{.fimBuildSeAndRse}; D-criterion
+/ log-det still use the raw matrix (may be 0 / \code{-Inf} when singular).}
+}
+\value{
+A \code{BayesianFim} object (filled by \code{run()}).
 }
 \description{
 Bayesian Fisher information matrix with shrinkage on random effects.
 
-Supports covariates and IOV via expectation over combinations and occasions.
-PK parameters use the Bayesian shrinkage formula; covariate \code{beta} effects
-enter as extra fixed-effect columns without IIV shrinkage.
+First-order linearization on the random-effect scale. Covariate \code{beta} is not a
+subject parameter (MAP conditions on \eqn{\beta}) and is omitted. Across
+strata / arms, subject FIMs keep their prior and are aggregated by averaging
+covariances: \eqn{\bar C = \sum w_s M_s^{-1}}, \eqn{M_{\mathrm{eff}}=\bar C^{-1}}.
+A positive weight on a non-identifiable protocol yields \code{Inf} SE for the
+null-space parameters. This covariance mixture is not comparable to summing
+Fisher matrices (PFIM 6 / PopED on this case).
+
+With IOV (\eqn{\gamma>0}), each occasion uses the marginal FO residual
+\eqn{V_k = R_k + F_k\,\mathrm{diag}(\gamma^2)\,F_k^\top} on the \eqn{\eta}-scale
+(equivalent to the \eqn{\eta} block of the augmented \eqn{(\eta,\kappa)} system).
+}
+\examples{
+\dontrun{
+vignette("Example01")
+}
 }

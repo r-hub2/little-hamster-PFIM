@@ -4,25 +4,28 @@
 \alias{SimplexAlgorithm}
 \title{SimplexAlgorithm}
 \usage{
-SimplexAlgorithm(
-  pctInitialSimplexBuilding = numeric(0),
-  maxIteration = numeric(0),
-  seed = numeric(0),
-  tolerance = numeric(0),
-  showProcess = FALSE
-)
+SimplexAlgorithm(optimizerOutputs = list())
 }
 \arguments{
-\item{pctInitialSimplexBuilding}{Numeric: the pctInitialSimplexBuilding.}
-
-\item{maxIteration}{Numeric: the maxIteration.}
-
-\item{seed}{Numeric: the seed.}
-
-\item{tolerance}{Numeric: the tolerance.}
-
-\item{showProcess}{Logical: the showProcess.}
+\item{optimizerOutputs}{List filled by \code{optimizeDesign()} (optimal arms, etc.).}
+}
+\value{
+A \code{SimplexAlgorithm} specification object.
 }
 \description{
 Nelder-Mead (amoeba) optimization for sampling times (Rcpp kernel).
+Pass \code{pctInitialSimplexBuilding}, \code{tolerance}, and \code{maxIteration}
+via \code{optimizerParameters} on \code{\link{Optimization}}.
+Search starts from each outcome's \code{initialSamplings} (same flat layout as PSO/PGBO).
+Extra vertices move one coordinate toward the far end of its sampling window
+(not toward 0), so unequal \code{numberOfTimesByWindows} stays feasible.
+Infeasible \code{initialSamplings} are replaced by a feasible window start
+with a warning.
+\code{tolerance <= 0} disables the relative stop (\code{converged = NA}, no warning),
+matching PSO/PGBO when stall stop is off.
+}
+\examples{
+\dontrun{
+vignette("Example02")
+}
 }

@@ -10,7 +10,7 @@ Design(
   arms = list(),
   evaluationArms = list(),
   numberOfArms = 0,
-  fim = Fim()
+  fim = NULL
 )
 }
 \arguments{
@@ -22,11 +22,23 @@ Design(
 
 \item{evaluationArms}{Evaluated arms after \code{evaluateDesign()}.}
 
-\item{numberOfArms}{Number of arms (computed).}
+\item{numberOfArms}{Optional total study size for discrete designs (historical
+CRAN field; Mult/FW prefer \code{size} / arm sizes / \code{numberOfSubjects}).
+Not the count of \code{Arm} objects.}
 
 \item{fim}{Aggregated \code{Fim} for the design.}
+}
+\value{
+An S7 object of class \code{Design}.
 }
 \description{
 Experimental design: one or more arms, each with dosing and sampling schedules.
 Filled by \code{evaluateDesign()} with per-arm FIM results.
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+design = prop(ev, "designs")[[1L]]
+prop(prop(design, "arms")[[1L]], "size")
+}
 }

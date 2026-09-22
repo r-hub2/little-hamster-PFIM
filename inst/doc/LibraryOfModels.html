@@ -48,8 +48,9 @@ overflow: visible;
 }
 </style>
 <style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
@@ -60,7 +61,7 @@ div.sourceCode { overflow: auto; }
 }
 @media print {
 pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
 { counter-reset: source-line 0; }
@@ -418,8 +419,7 @@ border: 1.5px solid black;
 <h1>Pharmacokinetic models</h1>
 <div id="compartmental-models-and-parameters" class="section level2">
 <h2>Compartmental models and parameters</h2>
-<p>Six parameters are common to one, two or three compartment
-models:</p>
+<p>Six parameters are common to one- and two-compartment models:</p>
 <ul>
 <li><span class="math inline">\(V\)</span> or <span class="math inline">\(V_1\)</span>, the volume of distribution in the
 central compartment</li>
@@ -741,8 +741,8 @@ Tinf$,}\\
 \text{if not.}
 \end{cases}                             
 \end {equation} \]</span></p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>Linear2InfusionSingleDose_kk12k21V,</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>Linear2InfusionSingleDose_ClQV1V2,</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>Linear2InfusionSingleDose_kk12k21V</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>Linear2InfusionSingleDose_ClQV1V2</span></code></pre></div>
 <ul>
 <li>steady state</li>
 </ul>
@@ -836,7 +836,7 @@ Tinf$}\\[0.05cm]
 \end{aligned}
 \label{infusion1mmsd}
 \end {equation} \]</span></p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>MichaelisMenten1InfusionSingleDose_VmKmk12k21V1V2</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>MichaelisMenten1InfusionSingleDose_VmKmV</span></code></pre></div>
 <ul>
 <li>multiple doses</li>
 </ul>
@@ -882,12 +882,13 @@ $t&lt; t_{D_{1}}$}\\[0.05cm]
 &amp;input\left(t\right)=\sum^{n}_{i=1}\frac{D_i}{V}k_ae^{-k_a\left(t-t_{D_{i}}\right)}
 \end{aligned}\label{oral11mmss}
 \end {equation}\]</span></p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>MichaelisMenten1FirstOrderSingleDose_kaVmKmV,</span>
-<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>MichaelisMenten2FirstOrderSingleDose_kaVmKmk12k21V1V2</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>MichaelisMenten1FirstOrderSingleDose_kaVmKmV</span></code></pre></div>
 </div>
 </div>
 <div id="two-compartment-models-1" class="section level3">
 <h3>Two-compartment models</h3>
+<p>The central volume is <span class="math inline">\(V_1\)</span>
+(catalogue suffix <code>V1V2</code>), not <span class="math inline">\(V\)</span>.</p>
 <div id="intravenous-bolus-3" class="section level4">
 <h4>Intravenous bolus</h4>
 <ul>
@@ -899,11 +900,11 @@ $t&lt; t_{D_{1}}$}\\[0.05cm]
 \text{Initial }&amp;\text{conditions:    }\begin{cases}
 C_1\left(t\right)= &amp;0 \text{    for $t&lt;t_D$}\\[0.05cm]
 C_2\left(t\right)= &amp;0 \text{    for $t\leq t_D$}\\[0.05cm]
-C_1\left(t_{D}\right)=&amp;{\frac{D}{V}}\\[0.05cm]
+C_1\left(t_{D}\right)=&amp;{\frac{D}{V_1}}\\[0.05cm]
 \end{cases}\\[0.15cm]
 &amp;\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{
-k_{21 }V_2}{V}C_2\\[0.2cm]
-&amp;\frac{dC_{2}}{dt}=\frac{ k_{12 }V}{V_2}C_1-k_{21}C_2   \\
+k_{21 }V_2}{V_1}C_2\\[0.2cm]
+&amp;\frac{dC_{2}}{dt}=\frac{ k_{12 }V_1}{V_2}C_1-k_{21}C_2 \\
 \end{aligned}
 \end {equation}\]</span></p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>MichaelisMenten2BolusSingleDose_VmKmk12k21V1V2</span></code></pre></div>
@@ -920,10 +921,10 @@ C_1\left(t\right)=&amp;0 \text{ for $t&lt;t_D$}\\[0.05cm]
 C_2\left(t\right)=&amp;0 \text{ for $t\leq t_D$}\\[0.05cm]
 \end{cases}\\[0.15cm]
 &amp;\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{
-k_{21 }V_2}{V}C_2+input\\[0.2cm]
-&amp;\frac{dC_{2}}{dt}=\frac{ k_{12 }V}{V_2}C_1-k_{21}C_2\\[0.2cm]
+k_{21 }V_2}{V_1}C_2+input\\[0.2cm]
+&amp;\frac{dC_{2}}{dt}=\frac{ k_{12 }V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
 &amp;input\left(t\right)=\begin{cases}
-{\frac{D}{Tinf}\frac{1}{V}} &amp;\text{if $0\leq t-t_{D}\leq
+{\frac{D}{Tinf}\frac{1}{V_1}} &amp;\text{if $0\leq t-t_{D}\leq
 Tinf$}\\[0.05cm]
 0 &amp;\text{if not.}
 \end{cases}
@@ -939,12 +940,12 @@ C_1\left(t\right)=&amp;0 \text{ for $t&lt;t_{D_{1}}$}\\[0.05cm]
 C_2\left(t\right)=&amp;0 \text{ for $t\leq t_{D_{1}}$}\\[0.05cm]
 \end{cases}\\[0.15cm]
 &amp;\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{
-k_{21 }V_2}{V}C_2 + input\\[0.2cm]
-&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
+k_{21 }V_2}{V_1}C_2 + input\\[0.2cm]
+&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
 &amp;input\left(t\right)=
 \begin{cases}
-{\frac{D_{i}}{Tinf_{i}}\frac{1}{V}} &amp;\text{if $0\leq t-t_{D_{i}}\leq
-Tinf_{i}$,}\\[0.05cm]
+{\frac{D_{i}}{Tinf_{i}}\frac{1}{V_1}} &amp;\text{if $0\leq
+t-t_{D_{i}}\leq Tinf_{i}$,}\\[0.05cm]
 0 &amp;\text{if not.}
 \end{cases}
 \end{aligned}
@@ -964,9 +965,9 @@ C_1\left(t\right)=&amp;0 \text{ for $t&lt; t_D$}\\[0.05cm]
 C_2\left(t\right)=&amp;0 \text{ for $t\leq t_D$}\\
 \end{cases}\\[0.15cm]
 &amp;\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{
-k_{21}V_2}{V}C_2+input\\[0.2cm]
-&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
-&amp;input\left(t\right)=\frac{D}{V}k_ae^{-k_a\left(t-t_D\right)}
+k_{21}V_2}{V_1}C_2+input\\[0.2cm]
+&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&amp;input\left(t\right)=\frac{D}{V_1}k_ae^{-k_a\left(t-t_D\right)}
 \end{aligned}
 \end {equation}\]</span></p>
 <ul>
@@ -979,9 +980,9 @@ C_1\left(t\right)=&amp;0 \text{ for $t&lt; t_{D_{1}}$}\\[0.05cm]
 C_2\left(t\right)=&amp;0 \text{ for $t\leq t_{D_{1}}$}\\
 \end{cases}\\[0.15cm]
 &amp;\frac{dC_{1}}{dt}=-\frac{{V_m}\times C_1}{K_m+C_1}-k_{12}C_1+\frac{
-k_{21}V_2}{V}C_2+input\\[0.2cm]
-&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V}{V_2}C_1-k_{21}C_2\\[0.2cm]
-&amp;input\left(t\right)=\sum^{n}_{i=1}\frac{D_i}{V}k_ae^{-k_a\left(t-t_{D_{i}}\right)}
+k_{21}V_2}{V_1}C_2+input\\[0.2cm]
+&amp;\frac{dC_{2}}{dt}=\frac{ k_{12}V_1}{V_2}C_1-k_{21}C_2\\[0.2cm]
+&amp;input\left(t\right)=\sum^{n}_{i=1}\frac{D_i}{V_1}k_ae^{-k_a\left(t-t_{D_{i}}\right)}
 \end{aligned}
 \end {equation} \]</span></p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>MichaelisMenten2FirstOrderSingleDose_kaVmKmk12k21V1V2</span></code></pre></div>
@@ -1076,25 +1077,29 @@ A\left(t\right)=1-\frac{I_{max}C\left(t\right)^{\gamma}}{C\left(t\right)^{\gamma
 </ul>
 <div class="sourceCode" id="cb25"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a>ImmediateDrugImax_S0ImaxC50_gamma</span></code></pre></div>
 <ul>
-<li><p>full <span class="math inline">\(I_{max}\)</span> model <span class="math display">\[\begin{equation}
-A\left(t\right)=-\frac{C\left(t\right)}{C\left(t\right)+C_{50}}
-\end{equation}\]</span></p></li>
-<li><p>sigmoïd full <span class="math inline">\(I_{max}\)</span> model
-<span class="math display">\[\begin{equation}
-A\left(t\right)=-\frac{C\left(t\right)^{\gamma}}{C\left(t\right)^{\gamma}+C_{50}^{\gamma}}
-\end{equation}\]</span></p></li>
+<li>full <span class="math inline">\(I_{max}\)</span> model <span class="math display">\[\begin{equation}
+A\left(t\right)=1-\frac{C\left(t\right)}{C\left(t\right)+C_{50}}
+\end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" tabindex="-1"></a>ImmediateDrugImax_S0ImaxC50_gamma</span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" tabindex="-1"></a>ImmediateDrugFullImax_S0C50</span></code></pre></div>
+<ul>
+<li>sigmoïd full <span class="math inline">\(I_{max}\)</span> model
+<span class="math display">\[\begin{equation}
+A\left(t\right)=1-\frac{C\left(t\right)^{\gamma}}{C\left(t\right)^{\gamma}+C_{50}^{\gamma}}
+\end{equation}\]</span></li>
+</ul>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a>ImmediateDrugSigmoidFullImax_S0C50gamma</span></code></pre></div>
 </div>
 <div id="baselinediseasemodel" class="section level3">
 <h3>Baseline/disease models</h3>
 <ul>
-<li>null baseline</li>
+<li>null baseline (no extra disease term: <span class="math inline">\(E=A\)</span>)</li>
 </ul>
 <p><span class="math display">\[\begin{equation}
 S\left(t\right)=0
 \end{equation}\]</span></p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a>ImmediateBaselineConstant_S0</span></code></pre></div>
+<p>There is no library entry for <span class="math inline">\(S=0\)</span>; combine a drug-action model
+alone.</p>
 <ul>
 <li>constant baseline with no disease progression</li>
 </ul>
@@ -1113,14 +1118,14 @@ S\left(t\right)=S_{0}+k_{prog}t
 <li>exponential disease increase</li>
 </ul>
 <p><span class="math display">\[\begin{equation}
-S\left(t\right)=S_{0}e^{-k_{prog}t}
+S\left(t\right)=S_{0}\left(1-e^{-k_{prog}t}\right)
 \end{equation}\]</span></p>
 <div class="sourceCode" id="cb30"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" tabindex="-1"></a>ImmediateBaselineExponentialincrease_S0kprog</span></code></pre></div>
 <ul>
 <li>exponential disease decrease</li>
 </ul>
 <p><span class="math display">\[\begin{equation}
-S\left(t\right)=S_{0}\left(1-e^{-k_{prog}t}\right)
+S\left(t\right)=S_{0}e^{-k_{prog}t}
 \end{equation}\]</span></p>
 <div class="sourceCode" id="cb31"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a>ImmediateBaselineExponentialdecrease_S0kprog</span></code></pre></div>
 </div>
@@ -1163,28 +1168,28 @@ rate constant</li>
 \label{indirect_sig_emax}               
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb33"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a>TurnoverRinSigmoidEmax_RinEmaxCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a>TurnoverRinSigmoidEmax_RinEmaxCC50koutEgamma</span></code></pre></div>
 <ul>
 <li><span class="math inline">\(I_{max}\)</span> model <span class="math display">\[\begin{equation}
 \frac{dE}{dt}=R_{in}\left(1-\frac{I_{max}C}{C+C_{50}}\right)-k_{out}E   
 \label{indirect_imax}
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a>TurnoverRinFullImax_RinCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a>TurnoverRinImax_RinImaxCC50koutE</span></code></pre></div>
 <ul>
 <li>sigmoïd <span class="math inline">\(I_{max}\)</span> model <span class="math display">\[\begin{equation}
 \frac{dE}{dt}=R_{in}\left(1-\frac{I_{max}C^{\gamma}}{C^{\gamma}+C_{50}^{\gamma}}\right)-k_{out}E    
 \label{indirect_simax}
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb35"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a>TurnoverRinImax_RinImaxCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a>TurnoverRinSigmoidImax_RinImaxCC50koutEgamma</span></code></pre></div>
 <ul>
 <li>full <span class="math inline">\(I_{max}\)</span> model <span class="math display">\[\begin{equation}
 \frac{dE}{dt}=R_{in}\left(1-\frac{C}{C+C_{50}}\right)-k_{out}E  
 \label{indirect_fimax}
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb36"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" tabindex="-1"></a>TurnoverRinSigmoidImax_RinImaxCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" tabindex="-1"></a>TurnoverRinFullImax_RinCC50koutE</span></code></pre></div>
 <ul>
 <li>sigmoïd full <span class="math inline">\(I_{max}\)</span> model
 <span class="math display">\[\begin{equation}
@@ -1192,7 +1197,7 @@ rate constant</li>
 \label{indirect_sfimax}             
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb37"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a>TurnoverRinFullImax_RinCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a>TurnoverRinSigmoidFullImax_RinCC50koutEgamma</span></code></pre></div>
 </div>
 <div id="models-with-impact-on-the-output-k_out" class="section level3">
 <h3>Models with impact on the output <span class="math inline">\((k_{out})\)</span></h3>
@@ -1233,7 +1238,7 @@ rate constant</li>
 \label{indirect_osfimax}
 \end{equation}\]</span></li>
 </ul>
-<div class="sourceCode" id="cb43"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a>TurnoverkoutSigmoidFullImax_RinCC50koutE</span></code></pre></div>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r boxModel"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a>TurnoverkoutSigmoidFullImax_RinCC50koutEgamma</span></code></pre></div>
 </div>
 </div>
 </div>

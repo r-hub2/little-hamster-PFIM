@@ -2,8 +2,7 @@
 % Please edit documentation in R/FedorovWynnAlgorithm.R
 \name{FedorovWynnAlgorithm_Rcpp}
 \alias{FedorovWynnAlgorithm_Rcpp}
-\title{Fedorov-Wynn algorithm in Rcpp.
-Wrapper around the compiled routine in \code{src/Fedorovwynnalgorithm.cpp}}
+\title{Fedorov-Wynn algorithm in Rcpp.}
 \arguments{
 \item{protocols}{List of elementary protocols.}
 
@@ -26,12 +25,16 @@ Wrapper around the compiled routine in \code{src/Fedorovwynnalgorithm.cpp}}
 \item{protdep}{Integer protocol-dependence flags.}
 
 \item{freqdep}{Numeric frequency-dependence values.}
+
+\item{show_process}{Logical; print cycle progress.}
+
+\item{delta}{Relative optimality gap: stop when
+\eqn{\max_i \mathrm{Tr}(F^{-1} F_i) \le p(1+\delta)} (default \code{1e-4}).}
 }
 \value{
 A list with the results of the Fedorov-Wynn algorithm.
 }
 \description{
 Fedorov-Wynn algorithm in Rcpp.
-Wrapper around the compiled routine in \code{src/Fedorovwynnalgorithm.cpp}
 }
 \keyword{internal}

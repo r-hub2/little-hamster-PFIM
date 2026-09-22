@@ -2,32 +2,25 @@
 #' @description Base class for infusion administration models.
 #' @inheritParams Model
 #' @include Model.R
+#' @include ModelAnalytic.R
+#' @return An S7 object of class \code{ModelInfusion}.
 #' @export
 
 ModelInfusion = new_class( "ModelInfusion", package = "PFIM", parent = Model )
 
-#' Convert an analytic infusion model to ODE form
+#' Convert analytic during/after infusion formulas to ODE form.
+#'
+#' Applies \code{.convertAnalyticPkExprToOde} to every equation in the
+#' \code{duringInfusion} and \code{afterInfusion} lists so infusion analytic
+#' models can be remapped onto ODE library compartments.
+#' @param pkModel An infusion analytic model with during/after equation lists.
+#' @return List with \code{duringInfusion} and \code{afterInfusion} ODE strings.
 #' @name convertPKModelAnalyticToPKModelODE
-#' @export
-
+#' @keywords internal
 method( convertPKModelAnalyticToPKModelODE, ModelInfusion ) = function( pkModel ) {
-
-  pkModelEquations = prop( pkModel, "modelEquations" )
-  pkModelEquations = list( duringInfusion = pkModelEquations$duringInfusion,
-                           afterInfusion  = pkModelEquations$afterInfusion )
-
-  convertEquation = function( equation ) {
-    dtEquationPKsubstitute = D( parse( text = equation ), "t" )
-    dtEquationPKsubstitute = str_c( deparse( dtEquationPKsubstitute ), collapse = "" )
-
-    if ( str_detect( equation, "Cl" ) ) {
-      str_c( dtEquationPKsubstitute, "+(Cl/V)*", equation, "- (Cl/V)*RespPK" )
-    } else {
-      str_c( dtEquationPKsubstitute, "+k*", equation, "- k*RespPK" )
-    }
-  }
-
-  pkModelEquations = map( pkModelEquations, ~ map( .x, convertEquation ) )
-
-  return( pkModelEquations )
+  pkEq = prop( pkModel, "modelEquations" )
+  list(
+    duringInfusion = map( pkEq$duringInfusion, .convertAnalyticPkExprToOde ),
+    afterInfusion  = map( pkEq$afterInfusion,  .convertAnalyticPkExprToOde )
+  )
 }

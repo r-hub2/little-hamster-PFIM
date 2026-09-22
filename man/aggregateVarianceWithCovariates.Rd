@@ -2,7 +2,7 @@
 % Please edit documentation in R/covariates-fim.R
 \name{aggregateVarianceWithCovariates}
 \alias{aggregateVarianceWithCovariates}
-\title{Expectation of the residual variance structure over covariate combinations and occasions.}
+\title{Expectation of residual variance over combinations / occasions (plots / flat V).}
 \usage{
 aggregateVarianceWithCovariates(arm)
 }
@@ -13,6 +13,7 @@ aggregateVarianceWithCovariates(arm)
 List with \code{errorVariance} and \code{sigmaDerivatives}.
 }
 \description{
-Expectation of the residual variance structure over covariate combinations and occasions.
+Same averaging contract as \code{aggregateGradientsWithCovariates}. FIM assembly
+for Individual / Bayesian uses \code{.evaluateIndBayesMixtureFim()} instead.
 }
 \keyword{internal}

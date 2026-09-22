@@ -9,6 +9,21 @@ LibraryOfPKModels(models = list())
 \arguments{
 \item{models}{Named list of built-in PK model equation definitions.}
 }
+\value{
+An S7 object of class \code{LibraryOfPKModels}.
+}
 \description{
-Built-in pharmacokinetic (PK) model library (bolus, infusion, absorption, 1â€“3 compartments).
+Built-in pharmacokinetic (PK) model library (bolus, infusion, absorption,
+one- and two-compartment and Michaelis-Menten structures).
+
+Exported \code{Linear*} helpers return equation *strings* (not S7 objects):
+two-compartment forms expand hybrid rates (alpha/beta) and partial-fraction
+coefficients (A/B) via string substitution. Prefer looking up names in
+\code{pkModelLibrary} for new code.
+}
+\examples{
+\donttest{
+names(prop(pkModelLibrary, "models"))[1:5]
+nzchar(Linear2BolusSingleDose_ClQV1V2())
+}
 }

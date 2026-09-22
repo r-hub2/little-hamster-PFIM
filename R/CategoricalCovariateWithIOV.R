@@ -9,18 +9,20 @@
 #' following each sequence and must sum to 1.
 #'
 #' @title CategoricalCovariateWithIOV
-#' @param name                Character â€” covariate identifier.
+#' @param name                Character: covariate identifier.
 #' @param categories          Character vector of category labels;
 #'                            first element is the reference level.
 #' @param sequences           Named list of character vectors (one per sequence
 #'                            group); names are auto-generated as
-#'                            \code{"sequence_1"}, \code{"sequence_2"}, â€¦
+#'                            \code{"sequence_1"}, \code{"sequence_2"}, ...
 #' @param sequencesProportions Numeric vector summing to 1.
 #' @param effects             Named list of covariate effects per category.
 #' @include Covariate.R
+#' @return An S7 object of class \code{CategoricalCovariateWithIOV}.
 #' @export
 
 CategoricalCovariateWithIOV = new_class( "CategoricalCovariateWithIOV",
+  package = "PFIM",
   parent = Covariate,
   properties = list(
     categories           = class_character,
@@ -30,20 +32,29 @@ CategoricalCovariateWithIOV = new_class( "CategoricalCovariateWithIOV",
   constructor = function( name, categories, sequences, sequencesProportions,
                           effects = list() ) {
 
+    .validateUnitProportions( sequencesProportions, "sequencesProportions" )
+    .validateCategoricalCategories(
+      categories, effects, sequences = sequences,
+      proportionLabel = "sequencesProportions", covName = name
+    )
+    # Stable names for occasion nesting even when the user list was unnamed.
     names( sequences ) = paste0( "sequence_", seq_along( sequences ) )
 
-    new_object( CategoricalCovariateWithIOV,
-                name                 = name,
-                effects              = effects,
-                categories           = categories,
-                sequences            = sequences,
-                sequencesProportions = sequencesProportions )
+    new_object(
+      Covariate( name = name, effects = effects ),
+      categories           = categories,
+      sequences            = sequences,
+      sequencesProportions = sequencesProportions
+    )
   }
 )
 
-#' Estimated covariate effects on parameters
+#' Effect vectors nested by sequence and occasion for IOV covariates.
+#'
+#' Each sequence yields a list of occasion-level effect vectors (same length as
+#' the sequence), used when averaging the FIM over crossover designs.
 #' @name getCovariateEffects
-#' @export
+#' @keywords internal
 
 method( getCovariateEffects, CategoricalCovariateWithIOV ) = function( covariate, effectVector ) {
   sequences = prop( covariate, "sequences" )

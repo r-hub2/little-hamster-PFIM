@@ -6,6 +6,7 @@
 \usage{
 Optimization(
   name = character(0),
+  modelClass = character(0),
   modelEquations = list(),
   modelCovariatesEquation = character(0),
   modelFromLibrary = list(),
@@ -19,6 +20,7 @@ Optimization(
   fimType = character(0),
   fim = NULL,
   odeSolverParameters = list(),
+  numberOfOccasions = NA_real_,
   project = NULL,
   optimisationDesign = list(),
   optimisationAlgorithmOutputs = list()
@@ -26,6 +28,9 @@ Optimization(
 }
 \arguments{
 \item{name}{Character string: project name.}
+
+\item{modelClass}{Model S7 class name; filled by \code{defineModelType()} when empty.
+Custom classes: \code{\link{pfim_register_model_class}}.}
 
 \item{modelEquations}{List of model equations (or empty if using the model library).}
 
@@ -41,7 +46,8 @@ Optimization(
 
 \item{optimizer}{Character: optimization algorithm name (for \code{Optimization}).}
 
-\item{optimizerParameters}{List of algorithm-specific settings.}
+\item{optimizerParameters}{See \code{\link{PFIMProject}}; validated when
+\code{optimizer} names a built-in algorithm.}
 
 \item{outputs}{Named list mapping internal to user output names.}
 
@@ -51,7 +57,12 @@ Optimization(
 
 \item{fim}{\code{Fim} object filled after \code{run()}.}
 
-\item{odeSolverParameters}{List with \code{atol} and \code{rtol} for ODE solvers.}
+\item{odeSolverParameters}{List with \code{atol} and \code{rtol} for ODE solvers.
+Finite-difference steps assume parameter mus are scaled to O(1).}
+
+\item{numberOfOccasions}{Integer number of study occasions; \code{NA} to infer
+(see \code{\link{inferNumberOfOccasions}}). If set, must be consistent with
+IOV covariate sequences and \code{gamma} on parameters.}
 
 \item{project}{Nested \code{PFIMProject} (filled by the constructor).}
 
@@ -59,8 +70,24 @@ Optimization(
 
 \item{optimisationAlgorithmOutputs}{Raw outputs from the optimization algorithm.}
 }
+\value{
+An \code{Optimization} object; after \code{run()}, see
+  \code{optimisationDesign} and \code{optimisationAlgorithmOutputs}.
+}
 \description{
 Design optimization: search over sampling times (or related design variables)
-using a metaheuristic or exchange algorithm. Holds a \code{PFIMProject} in the
-\code{project} slot (composition) plus optimization results.
+using a metaheuristic or exchange algorithm.
+
+Project fields use \code{\link{prop}}. Several \code{designs}: all optimizers
+(discrete and continuous) optimize each in turn
+(\code{optimisationAlgorithmOutputs$perDesign}).
+}
+\examples{
+\dontrun{
+vignette("Example01")
+}
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+class(ev)
+}
 }

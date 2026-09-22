@@ -2,7 +2,7 @@
 % Please edit documentation in R/ModelAnalytic.R
 \name{evaluateAnalyticCore}
 \alias{evaluateAnalyticCore}
-\title{evaluateAnalyticCore: core analytic evaluation (shared by covariate path).}
+\title{Evaluate analytic bolus concentrations at all sampling times.}
 \usage{
 evaluateAnalyticCore(model, arm)
 }
@@ -11,7 +11,13 @@ evaluateAnalyticCore(model, arm)
 
 \item{arm}{An \code{Arm} object.}
 }
+\value{
+Named list of output data frames at requested sampling times.
+}
 \description{
-evaluateAnalyticCore: core analytic evaluation (shared by covariate path).
+For each observation time and administered outcome, evaluates the closed-form
+formula over all active doses (superposition via \code{sum}), then evaluates
+passive (non-admin) equations with the administered prediction injected into
+the shared argument list.
 }
 \keyword{internal}

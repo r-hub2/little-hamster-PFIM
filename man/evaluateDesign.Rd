@@ -2,7 +2,28 @@
 % Please edit documentation in R/Design.R
 \name{evaluateDesign}
 \alias{evaluateDesign}
-\title{Evaluate Fisher information for a design}
-\description{
-Evaluate Fisher information for a design
+\title{Evaluate a design for a model and FIM type}
+\usage{
+evaluateDesign(design, ...)
 }
+\arguments{
+\item{design}{A \code{Design} object.}
+
+\item{...}{Method-specific arguments. For \code{Design}, \code{model} and \code{fim} objects.}
+}
+\value{
+The updated \code{Design} object after evaluation.
+
+The same \code{Design} with \code{evaluationArms} and \code{fim} set.
+}
+\description{
+Runs \code{evaluateArm()} on each arm (the arm method clones \code{model}
+before binding administration), then \code{.assembleDesignFim()}.
+}
+\examples{
+\donttest{
+source(system.file("examples", "evaluation-minimal.R", package = "PFIM"))
+length(prop(ev, "evaluationDesign"))
+}
+}
+\keyword{internal}
